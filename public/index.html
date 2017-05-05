@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="shortcut icon" href="%PUBLIC_URL%/favicon.ico">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/camanjs/4.1.2/caman.full.min.js"></script>
+    <script src="combinatorics.js"></script>
+    <script>
+
+
+        window.onload = function() {
+
+            function sigmoid(x) {
+                return 1.0 / (1.0 + Math.pow(Math.E, (-((x - 128.0) / 32.0))))
+            }
+
+            // They call this filter.
+            Caman.Filter.register('tritonize', function(colorList) {
+                // Our process function that will be called for each pixel.
+                // Note that we pass the name of the filter as the first argument.
+                this.process('tritonize', rgba => {
+                    var greyScaleVal = rgba.r * 299 / 1000 + rgba.g * 587 / 1000 + rgba.b * 114 / 1000;
+
+                    const threshold = sigmoid(greyScaleVal);
+
+                    var matchedColor = colorList[Math.floor(threshold * colorList.length)]
+
+                    rgba.r = matchedColor[0]
+                    rgba.g = matchedColor[1]
+                    rgba.b = matchedColor[2]
+
+                    return rgba;
+                });
+            });
+
+            var colorList = [
+                [198,12,48],
+                [255,255,255],
+                /*
+                [0, 0, 0],
+                [228,228,226]
+                */
+            ];
+
+            var colorPerms = Combinatorics.permutation(colorList).toArray();
+
+            function processImage(i, blur) {
+              Caman("#image_" + i, "/sampleImage.jpg", function() {
+                this.stackBlur(blur)
+                  this.tritonize(colorPerms[i]);
+                  this.render(function(a,b,c,d) {
+                      console.log(this.pixelData);
+                  })
+              });
+            }
+
+            for (var i = 0; i < colorPerms.length; i++) {
+              newdiv = document.createElement('canvas');
+              newdiv.setAttribute('id',"image_" + i);
+              document.body.appendChild(newdiv);
+
+              processImage(i, 10)
+            }
+
+
+
+
+        }
+        /*
+
+        function worker() {
+  setInterval(function() {
+    postMessage({foo: "bar"});
+  }, 1000);
+}
+
+var code = worker.toString();
+code = code.substring(code.indexOf("{")+1, code.lastIndexOf("}"));
+
+var blob = new Blob([code], {type: "application/javascript"});
+var worker = new Worker(URL.createObjectURL(blob));
+
+worker.onmessage = function(m) {
+  console.log("msg", m);
+};
+*/
+    </script>
+
+    <!--
+      Notice the use of %PUBLIC_URL% in the tag above.
+      It will be replaced with the URL of the `public` folder during the build.
+      Only files inside the `public` folder can be referenced from the HTML.
+
+      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
+      work correctly both with client-side routing and a non-root public URL.
+      Learn how to configure a non-root public URL by running `npm run build`.
+    -->
+    <title>React App</title>
+    <style>
+    body {
+      display:flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+    canvas {
+      max-height: 70vh;
+      margin: 25px;
+    }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+    <!--
+      This HTML file is a template.
+      If you open it directly in the browser, you will see an empty page.
+
+      You can add webfonts, meta tags, or analytics to this file.
+      The build step will place the bundled scripts into the <body> tag.
+
+      To begin the development, run `npm start`.
+      To create a production bundle, use `npm run build`.
+    -->
+</body>
+
+</html>
