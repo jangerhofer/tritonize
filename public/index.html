@@ -7,85 +7,76 @@
     <link rel="shortcut icon" href="%PUBLIC_URL%/favicon.ico">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/camanjs/4.1.2/caman.full.min.js"></script>
     <script src="combinatorics.js"></script>
+    <script src="parallel.js"></script>
+    <script src="StackBlur.js"></script>
     <script>
 
 
         window.onload = function() {
 
-            function sigmoid(x) {
+
+
+          var img = new Image();
+      img.src = 'http://localhost:3000/sampleImage.jpg';
+      img.onload = function() {
+        draw(this);
+      };
+
+      function calculateAspectRatioFit(srcWidth, srcHeight, maxWidth, maxHeight) {
+  var ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
+  var rtnWidth = srcWidth*ratio;
+  var rtnHeight = srcHeight*ratio;
+  return { width: rtnWidth, height: rtnHeight };
+}
+
+      function draw(img) {
+        var canvas = document.getElementById('canvas');
+        var canvasWidth = 10000
+        var canvasHeight = 10000
+
+        canvas.width = canvasWidth
+        canvas.height = canvasHeight
+        var ctx = canvas.getContext('2d');
+
+        var imgSize = calculateAspectRatioFit(img.width, img.height, canvasWidth, canvasHeight);
+  ctx.drawImage(img,30,30,imgSize.width, imgSize.height);
+
+        stackBlurCanvasRGBA("canvas", 0, 0, canvasWidth, canvasHeight, 4);
+
+        var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var data = imageData.data;
+
+
+        function sigmoid(x) {
                 return 1.0 / (1.0 + Math.pow(Math.E, (-((x - 128.0) / 32.0))))
             }
 
-            // They call this filter.
-            Caman.Filter.register('tritonize', function(colorList) {
-                // Our process function that will be called for each pixel.
-                // Note that we pass the name of the filter as the first argument.
-                this.process('tritonize', rgba => {
-                    var greyScaleVal = rgba.r * 299 / 1000 + rgba.g * 587 / 1000 + rgba.b * 114 / 1000;
 
-                    const threshold = sigmoid(greyScaleVal);
+      var colorList = [
+               [198,12,48],
+               [255,255,255],
+               [174,174,174],
+               [255,0,255]
+             ]
+      for (var i = 0; i < data.length; i+=4) {
+        //rgba.r * 299 / 1000 + rgba.g * 587 / 1000 + rgba.b * 114 / 1000;
+        var grayScale = data[i] *  299 / 1000 + data[i+1] * 587 / 1000 + data[i+2] * 114/1000
+        var threshold = sigmoid(grayScale);
+        var matchedColor = colorList[Math.floor(threshold * colorList.length)]
+        data[i] = matchedColor[0]
+        data[i+1] = matchedColor[1]
+        data[i+2] = matchedColor[2]
+        data[3] = 255
+      }
 
-                    var matchedColor = colorList[Math.floor(threshold * colorList.length)]
+      ctx.putImageData(imageData, 0, 0);
 
-                    rgba.r = matchedColor[0]
-                    rgba.g = matchedColor[1]
-                    rgba.b = matchedColor[2]
-
-                    return rgba;
-                });
-            });
-
-            var colorList = [
-                [198,12,48],
-                [255,255,255],
-                /*
-                [0, 0, 0],
-                [228,228,226]
-                */
-            ];
-
-            var colorPerms = Combinatorics.permutation(colorList).toArray();
-
-            function processImage(i, blur) {
-              Caman("#image_" + i, "/sampleImage.jpg", function() {
-                this.stackBlur(blur)
-                  this.tritonize(colorPerms[i]);
-                  this.render(function(a,b,c,d) {
-                      console.log(this.pixelData);
-                  })
-              });
-            }
-
-            for (var i = 0; i < colorPerms.length; i++) {
-              newdiv = document.createElement('canvas');
-              newdiv.setAttribute('id',"image_" + i);
-              document.body.appendChild(newdiv);
-
-              processImage(i, 10)
-            }
-
+      }
 
 
 
         }
-        /*
 
-        function worker() {
-  setInterval(function() {
-    postMessage({foo: "bar"});
-  }, 1000);
-}
-
-var code = worker.toString();
-code = code.substring(code.indexOf("{")+1, code.lastIndexOf("}"));
-
-var blob = new Blob([code], {type: "application/javascript"});
-var worker = new Worker(URL.createObjectURL(blob));
-
-worker.onmessage = function(m) {
-  console.log("msg", m);
-};
-*/
     </script>
 
     <!--
@@ -98,22 +89,18 @@ worker.onmessage = function(m) {
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
     <title>React App</title>
-    <style>
-    body {
-      display:flex;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-    }
-    canvas {
-      max-height: 70vh;
-      margin: 25px;
-    }
-    </style>
+
 </head>
 
 <body>
     <div id="root"></div>
+    <canvas id="canvas"></canvas>
+    <div>
+      <input id="grayscalebtn" value="Grayscale" type="button">
+      <input id="invertbtn" value="Invert" type="button">
+    </div>
+
+
     <!--
       This HTML file is a template.
       If you open it directly in the browser, you will see an empty page.
