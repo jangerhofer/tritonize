@@ -8,98 +8,94 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/camanjs/4.1.2/caman.full.min.js"></script>
     <script src="combinatorics.js"></script>
     <script src="parallel.js"></script>
-    <script src="StackBlur.js"></script>
+    <script src="FastBlur.js"></script>
     <style>
-    body {
-    display:flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-  }
-  canvas {
-    max-height: 70vh;
-    margin: 25px;
-  }
-
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        canvas {
+            max-height: 70vh;
+            margin: 25px;
+        }
     </style>
     <script>
-
-    function sigmoid(x) {
+        function sigmoid(x) {
             return 1.0 / (1.0 + Math.pow(Math.E, (-((x - 128.0) / 32.0))))
         }
 
+        function calculateAspectRatioFit(srcWidth, srcHeight, maxWidth, maxHeight) {
+            var ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
+            var rtnWidth = srcWidth * ratio;
+            var rtnHeight = srcHeight * ratio;
+            return {
+                width: rtnWidth,
+                height: rtnHeight
+            };
+        }
 
-              function calculateAspectRatioFit(srcWidth, srcHeight, maxWidth, maxHeight) {
-          var ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
-          var rtnWidth = srcWidth*ratio;
-          var rtnHeight = srcHeight*ratio;
-          return { width: rtnWidth, height: rtnHeight };
+        function loadImage(colorList, i) {
+            console.log("calling on i=", i);
+            var img = new Image();
+            img.src = 'http://localhost:3000/sampleImage.jpg';
+            img.onload = function() {
+                draw(this, colorList, i);
+            };
+        }
+
+        function draw(img, colorList, i) {
+            console.log(colorList);
+
+            var canvas = document.createElement('canvas');
+            canvas.id = 'canvas_' + i;
+
+            document.body.appendChild(canvas);
+            canvas.width = img.width
+            canvas.height = img.height
+            var ctx = canvas.getContext('2d');
+
+            var imgSize = calculateAspectRatioFit(img.width, img.height, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, imgSize.width, imgSize.height);
+
+            // Last two args are blue radius and blur iterations (for smoothing purposes)
+            boxBlurCanvasRGBA("canvas_"+i, 0, 0, canvas.width, canvas.height, 10, 2);
+
+            var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            var data = imageData.data;
+
+            for (var i = 0; i < data.length; i += 4) {
+                //rgba.r * 299 / 1000 + rgba.g * 587 / 1000 + rgba.b * 114 / 1000;
+                var grayScale = data[i] * 299 / 1000 + data[i + 1] * 587 / 1000 + data[i + 2] * 114 / 1000
+                var threshold = sigmoid(grayScale);
+                var matchedColor = colorList[Math.floor(threshold * colorList.length)]
+                data[i] = matchedColor[0]
+                data[i + 1] = matchedColor[1]
+                data[i + 2] = matchedColor[2]
+                data[3] = 255
+            }
+            ctx.putImageData(imageData, 0, 0);
+
         }
 
 
         window.onload = function() {
 
-          var colorList = [
-                   [198,12,48],
-                   [255,255,255],
-                   [174,174,174],
-                   [255,0,255]
-                 ]
-        var colorPerms = Combinatorics.permutation(colorList).toArray();
-        console.log(colorPerms);
+            var colorList = [
+                [198, 12, 48],
+                [255, 255, 255],
+              //  [174, 174, 174],
+              //  [255, 0, 255]
+            ]
+            var colorPerms = Combinatorics.permutation(colorList).toArray();
+            console.log(colorPerms);
 
-        for (var i = 0; i < colorPerms.length; i++) {
-          loadImage(colorPerms[i], i)
-        }
-
-        function loadImage(colorList, i) {
-          console.log("calling on i=", i);
-          var img = new Image();
-          img.src = 'http://localhost:3000/sampleImage.jpg';
-          img.onload = function() {
-            draw(this, colorList, i);
-          };
-        }
-
-      function draw(img, colorList, i) {
-        console.log(colorList);
-
-        var canvas = document.createElement('canvas');
-        canvas.id = 'canvas_'+i;
-
-        document.body.appendChild(canvas);
-        canvas.width = img.width
-        canvas.height = img.height
-        var ctx = canvas.getContext('2d');
-
-        var imgSize = calculateAspectRatioFit(img.width, img.height, canvas.width, canvas.height);
-  ctx.drawImage(img,0,0,imgSize.width, imgSize.height);
-
-        stackBlurCanvasRGBA("canvas", 0, 0, canvas.width, canvas.height, 4);
-
-        var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        var data = imageData.data;
-
-
-      for (var i = 0; i < data.length; i+=4) {
-        //rgba.r * 299 / 1000 + rgba.g * 587 / 1000 + rgba.b * 114 / 1000;
-        var grayScale = data[i] *  299 / 1000 + data[i+1] * 587 / 1000 + data[i+2] * 114/1000
-        var threshold = sigmoid(grayScale);
-        var matchedColor = colorList[Math.floor(threshold * colorList.length)]
-        data[i] = matchedColor[0]
-        data[i+1] = matchedColor[1]
-        data[i+2] = matchedColor[2]
-        data[3] = 255
-      }
-
-      ctx.putImageData(imageData, 0, 0);
-
-      }
-
-
+            for (var i = 0; i < colorPerms.length; i++) {
+                loadImage(colorPerms[i], i)
+            }
 
         }
-
     </script>
 
     <!--
@@ -118,11 +114,6 @@
 <body>
     <div id="root"></div>
     <canvas id="canvas"></canvas>
-    <div>
-      <input id="grayscalebtn" value="Grayscale" type="button">
-      <input id="invertbtn" value="Invert" type="button">
-    </div>
-
 
     <!--
       This HTML file is a template.
