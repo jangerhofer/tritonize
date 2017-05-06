@@ -14,7 +14,8 @@
     "node-vibrant": "3.0.0-alpha.2",
     "react": "^15.5.4",
     "react-dom": "^15.5.4",
-    "react-dropzone": "^3.13.1"
+    "react-dropzone": "^3.13.1",
+    "stackblur": "^1.0.0"
   },
   "scripts": {
     "start": "react-scripts start",
