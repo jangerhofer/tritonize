@@ -55,7 +55,7 @@
             mul_table: mul_table,
             shg_table: shg_table,
             blurImage: StackBlur.imageDataRGBA,
-            sigmoid : sigmoid,
+            sigmoid: sigmoid,
             tritonize: tritonize,
             run: function(jobData, cb) {
                 cb(this.tritonize(jobData.imageData, jobData.colorList), jobData)
@@ -65,9 +65,9 @@
         function writeToCanvas(canvasID, newData) {
             var canvas = document.getElementById(canvasID)
             var ctx = canvas.getContext('2d');
-            var imgData=ctx.createImageData(canvas.width, canvas.height);
+            var imgData = ctx.createImageData(canvas.width, canvas.height);
             imgData.data.set(newData)
-            ctx.putImageData(imgData,0,0);
+            ctx.putImageData(imgData, 0, 0);
         }
 
         function createCanvas(colorList, i) {
@@ -76,6 +76,7 @@
             img.onload = function() {
                 var canvas = document.createElement('canvas');
                 canvas.id = 'canvas_' + i;
+                canvas.style.order = i
 
                 document.body.appendChild(canvas);
                 canvas.width = img.width
@@ -95,11 +96,11 @@
                     },
                     imageData: originalData,
                     index: i,
-                    colorList : colorList
+                    colorList: colorList
                 }
 
                 imageManipulator.run(jobData, function(imageData, originalJobData) {
-                    writeToCanvas("canvas_"+ originalJobData.index, imageData)
+                    writeToCanvas("canvas_" + originalJobData.index, imageData)
                 })
 
             }
@@ -110,15 +111,17 @@
             var colorList = [
                 [198, 12, 48],
                 [255, 255, 255],
-                [0,0,0],
-                [228,219,204]
+                [0, 0, 0],
+                [228, 219, 204],
+                [60, 74, 198],
+                [79, 243, 222]
+
             ]
             var colorPerms = Combinatorics.permutation(colorList).toArray();
 
             for (var i = 0; i < colorPerms.length; i++) {
                 createCanvas(colorPerms[i], i)
             };
-
 
         }
     </script>
@@ -138,7 +141,6 @@
 
 <body>
     <div id="root"></div>
-    <canvas id="canvas"></canvas>
 
     <!--
       This HTML file is a template.
