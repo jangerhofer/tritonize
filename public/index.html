@@ -9,6 +9,7 @@
     <script src="worker.js"></script>
     <script src="FastBlur.js"></script>
     <script src="StackBlur.js"></script>
+    <script src="download.js"></script>
     <style>
         body {
             display: flex;
@@ -64,6 +65,7 @@
 
         function writeToCanvas(canvasID, newData) {
             var canvas = document.getElementById(canvasID)
+            canvas.setAttribute("filtered", "true")
             var ctx = canvas.getContext('2d');
             var imgData = ctx.createImageData(canvas.width, canvas.height);
             imgData.data.set(newData)
@@ -73,12 +75,21 @@
         function createCanvas(colorList, i) {
             var img = new Image();
             img.src = 'sampleImage.png';
+
             img.onload = function() {
                 var canvas = document.createElement('canvas');
                 canvas.id = 'canvas_' + i;
-                canvas.style.order = i
-
+                canvas.style.order = i*2
+                canvas.onclick = function(evt) {
+                  if (!evt.toElement.getAttribute('filtered')) {
+                    alert("That image hasn't been filtered yet.  Please wait.")
+                  }
+                  else {
+                  download(evt.toElement.toDataURL(), "tritonizeEdit.png", "image/png")
+                  }
+                }
                 document.body.appendChild(canvas);
+
                 canvas.width = img.width
                 canvas.height = img.height
                 var ctx = canvas.getContext('2d');
@@ -141,7 +152,7 @@
 
 <body>
     <div id="root"></div>
-
+    <center><h3>The filter may take a short while to apply to all images.  Once an image has been filtered, clicking on it will download a copy.</h3></center>
     <!--
       This HTML file is a template.
       If you open it directly in the browser, you will see an empty page.
