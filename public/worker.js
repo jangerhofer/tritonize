@@ -9,36 +9,35 @@
  * @license MIT
  */
 (function () {
-
-	if (typeof window == 'undefined' && self.importScripts) {
+	if (typeof window === 'undefined' && self.importScripts) {
 		// Exit if operative.js is being loaded as worker (no blob support flow);
 		return;
 	}
 
-	var hasOwn = {}.hasOwnProperty;
+	const hasOwn = {}.hasOwnProperty;
 
 	// Note: This will work only in the built dist:
 	// (Otherwise you must explicitly set selfURL to BrowserWorker.js)
-	var scripts = document.getElementsByTagName('script');
-	var opScript = scripts[scripts.length - 1];
-	var opScriptURL = /operative/.test(opScript.src) && opScript.src;
+	const scripts = document.getElementsByTagName('script');
+	const opScript = scripts[scripts.length - 1];
+	let opScriptURL = /operative/.test(opScript.src) && opScript.src;
 
-	operative.pool = function(size, module, dependencies) {
+	operative.pool = function (size, module, dependencies) {
 		size = 0 | Math.abs(size) || 1;
-		var operatives = [];
-		var current = 0;
+		const operatives = [];
+		let current = 0;
 
-		for (var i = 0; i < size; ++i) {
+		for (let i = 0; i < size; ++i) {
 			operatives.push(operative(module, dependencies));
 		}
 
 		return {
-			terminate: function() {
-				for (var i = 0; i < size; ++i) {
+			terminate() {
+				for (let i = 0; i < size; ++i) {
 					operatives[i].destroy();
 				}
 			},
-			next: function() {
+			next() {
 				current = current + 1 === size ? 0 : current + 1;
 				return operatives[current];
 			}
@@ -49,23 +48,22 @@
 	 * Exposed operative factory
 	 */
 	function operative(module, dependencies) {
+		const getBase = operative.getBaseURL;
+		const getSelf = operative.getSelfURL;
 
-		var getBase = operative.getBaseURL;
-		var getSelf = operative.getSelfURL;
+		const OperativeContext = operative.hasWorkerSupport ? operative.Operative.BrowserWorker : operative.Operative.Iframe;
 
-		var OperativeContext = operative.hasWorkerSupport ? operative.Operative.BrowserWorker : operative.Operative.Iframe;
-
-		if (typeof module == 'function') {
+		if (typeof module === 'function') {
 			// Allow a single function to be passed.
-			var o = new OperativeContext({ main: module }, dependencies, getBase, getSelf);
-			var singularOperative = function() {
+			const o = new OperativeContext({main: module}, dependencies, getBase, getSelf);
+			const singularOperative = function () {
 				return o.api.main.apply(o, arguments);
 			};
-			singularOperative.transfer = function() {
+			singularOperative.transfer = function () {
 				return o.api.main.transfer.apply(o, arguments);
 			};
 			// Copy across exposable API to the returned function:
-			for (var i in o.api) {
+			for (const i in o.api) {
 				if (hasOwn.call(o.api, i)) {
 					singularOperative[i] = o.api[i];
 				}
@@ -74,27 +72,26 @@
 		}
 
 		return new OperativeContext(module, dependencies, getBase, getSelf).api;
-
 	}
 
 	// Indicates whether operatives will run within workers:
-	operative.hasWorkerSupport = !!window.Worker;
+	operative.hasWorkerSupport = Boolean(window.Worker);
 	operative.hasWorkerViaBlobSupport = false;
 	operative.hasTransferSupport = false;
 
 	// Default base URL (to be prepended to relative dependency URLs)
 	// is current page's parent dir:
-	var baseURL = (
+	let baseURL = (
 		location.protocol + '//' +
 		location.hostname +
-		(location.port?':'+location.port:'') +
+		(location.port ? ':' + location.port : '') +
 		location.pathname
 	).replace(/[^\/]+$/, '');
 
 	/**
 	 * Provide Object.create shim
 	 */
-	operative.objCreate = Object.create || function(o) {
+	operative.objCreate = Object.create || function (o) {
 		function F() {}
 		F.prototype = o;
 		return new F();
@@ -105,11 +102,11 @@
 	 * operative script itself.
 	 */
 
-	operative.setSelfURL = function(url) {
+	operative.setSelfURL = function (url) {
 		opScriptURL = url;
 	};
 
-	operative.getSelfURL = function(url) {
+	operative.getSelfURL = function (url) {
 		return opScriptURL;
 	};
 
@@ -118,11 +115,11 @@
 	 * as a base for getting dependencies
 	 */
 
-	operative.setBaseURL = function(base) {
+	operative.setBaseURL = function (base) {
 		baseURL = base;
 	};
 
-	operative.getBaseURL = function() {
+	operative.getBaseURL = function () {
 		return baseURL;
 	};
 
@@ -130,20 +127,19 @@
 	window.operative = operative;
 })();
 
-(function() {
-
-	if (typeof window == 'undefined' && self.importScripts) {
+(function () {
+	if (typeof window === 'undefined' && self.importScripts) {
 		// Exit if operative.js is being loaded as worker (no blob support flow);
 		return;
 	}
 
-	var hasOwn = {}.hasOwnProperty;
-	var slice = [].slice;
-	var toString = {}.toString;
+	const hasOwn = {}.hasOwnProperty;
+	const slice = [].slice;
+	const toString = {}.toString;
 
 	operative.Operative = OperativeContext;
 
-	var Promise = OperativeContext.Promise = window.Promise;
+	const Promise = OperativeContext.Promise = window.Promise;
 
 	function OperativeTransfers(transfers) {
 		this.value = transfers;
@@ -155,14 +151,13 @@
 	 * @param {Object} module Object containing methods/properties
 	 */
 	function OperativeContext(module, dependencies, getBaseURL, getSelfURL) {
+		const _self = this;
 
-		var _self = this;
-
-		module.get = module.get || function(prop) {
+		module.get = module.get || function (prop) {
 			return this[prop];
 		};
 
-		module.set = module.set || function(prop, value) {
+		module.set = module.set || function (prop, value) {
 			return this[prop] = value;
 		};
 
@@ -186,7 +181,7 @@
 		this._fixDependencyURLs();
 		this._setup();
 
-		for (var methodName in module) {
+		for (const methodName in module) {
 			if (hasOwn.call(module, methodName)) {
 				this._createExposedMethod(methodName);
 			}
@@ -195,53 +190,51 @@
 		this.api.__operative__ = this;
 
 		// Provide the instance's destroy method on the exposed API:
-		this.api.destroy = this.api.terminate = function() {
+		this.api.destroy = this.api.terminate = function () {
 			return _self.destroy();
 		};
-
 	}
 
 	OperativeContext.prototype = {
 
-		_marshal: function(v) {
+		_marshal(v) {
 			return v;
 		},
 
-		_demarshal: function(v) {
+		_demarshal(v) {
 			return v;
 		},
 
-		_enqueue: function(fn) {
+		_enqueue(fn) {
 			this._queue.push(fn);
 		},
 
-		_fixDependencyURLs: function() {
-			var deps = this.dependencies;
-			for (var i = 0, l = deps.length; i < l; ++i) {
-				var dep = deps[i];
+		_fixDependencyURLs() {
+			const deps = this.dependencies;
+			for (let i = 0, l = deps.length; i < l; ++i) {
+				const dep = deps[i];
 				if (!/\/\//.test(dep)) {
 					deps[i] = dep.replace(/^\/?/, this._getBaseURL().replace(/([^\/])$/, '$1/'));
 				}
 			}
 		},
 
-		_dequeueAll: function() {
-			for (var i = 0, l = this._queue.length; i < l; ++i) {
+		_dequeueAll() {
+			for (let i = 0, l = this._queue.length; i < l; ++i) {
 				this._queue[i].call(this);
 			}
 			this._queue = [];
 		},
 
-		_buildContextScript: function(boilerScript) {
+		_buildContextScript(boilerScript) {
+			const script = [];
+			const module = this.module;
+			const dataProperties = this.dataProperties;
+			let property;
 
-			var script = [];
-			var module = this.module;
-			var dataProperties = this.dataProperties;
-			var property;
-
-			for (var i in module) {
+			for (const i in module) {
 				property = module[i];
-				if (typeof property == 'function') {
+				if (typeof property === 'function') {
 					script.push('	self["' + i.replace(/"/g, '\\"') + '"] = ' + property.toString() + ';');
 				} else {
 					dataProperties[i] = property;
@@ -251,23 +244,20 @@
 			return script.join('\n') + (
 				boilerScript ? '\n(' + boilerScript.toString() + '());' : ''
 			);
-
 		},
 
-		_createExposedMethod: function(methodName) {
+		_createExposedMethod(methodName) {
+			const self = this;
 
-			var self = this;
-
-			var method = this.api[methodName] = function() {
-
+			const method = this.api[methodName] = function () {
 				if (self.isDestroyed) {
 					throw new Error('Operative: Cannot run method. Operative has already been destroyed');
 				}
 
-				var token = ++self._curToken;
-				var args = slice.call(arguments);
-				var cb = typeof args[args.length - 1] == 'function' && args.pop();
-				var transferables = args[args.length - 1] instanceof OperativeTransfers && args.pop();
+				const token = ++self._curToken;
+				const args = slice.call(arguments);
+				const cb = typeof args[args.length - 1] === 'function' && args.pop();
+				const transferables = args[args.length - 1] instanceof OperativeTransfers && args.pop();
 
 				if (!cb && !Promise) {
 					throw new Error(
@@ -277,20 +267,17 @@
 				}
 
 				if (cb) {
-
 					self.callbacks[token] = cb;
 
 					// Ensure either context runs the method async:
-					setTimeout(function() {
+					setTimeout(() => {
 						runMethod();
 					}, 1);
-
 				} else if (Promise) {
-
 					// No Callback -- Promise used:
 
-					return new Promise(function(resolve, reject) {
-						var deferred;
+					return new Promise((resolve, reject) => {
+						let deferred;
 
 						if (resolve.fulfil || resolve.fulfill) {
 							// Backwards compatibility
@@ -302,8 +289,8 @@
 								fulfil: resolve,
 								fulfill: resolve,
 
-								resolve: resolve,
-								reject: reject,
+								resolve,
+								reject,
 
 								// For the iframe:
 								transferResolve: resolve,
@@ -314,7 +301,6 @@
 						self.deferreds[token] = deferred;
 						runMethod();
 					});
-
 				}
 
 				function runMethod() {
@@ -324,17 +310,15 @@
 						self._enqueue(runMethod);
 					}
 				}
-
 			};
 
-			method.transfer = function() {
-
-				var args = [].slice.call(arguments);
-				var transfersIndex = typeof args[args.length - 1] == 'function' ?
-					args.length - 2:
+			method.transfer = function () {
+				const args = [].slice.call(arguments);
+				const transfersIndex = typeof args[args.length - 1] === 'function' ?
+					args.length - 2 :
 					args.length - 1;
-				var transfers = args[transfersIndex];
-				var transfersType = toString.call(transfers);
+				const transfers = args[transfersIndex];
+				const transfersType = toString.call(transfers);
 
 				if (transfersType !== '[object Array]') {
 					throw new Error(
@@ -345,21 +329,17 @@
 
 				args[transfersIndex] = new OperativeTransfers(transfers);
 				return method.apply(null, args);
-
 			};
-
 		},
 
-		destroy: function() {
+		destroy() {
 			this.isDestroyed = true;
 		}
 	};
-
 })();
 
-(function() {
-
-	if (typeof window == 'undefined' && self.importScripts) {
+(function () {
+	if (typeof window === 'undefined' && self.importScripts) {
 		// I'm a worker! Run the boiler-script:
 		// (Operative itself is called in IE10 as a worker,
 		//	to avoid SecurityErrors)
@@ -367,38 +347,38 @@
 		return;
 	}
 
-	var Operative = operative.Operative;
+	const Operative = operative.Operative;
 
-	var URL = window.URL || window.webkitURL;
-	var BlobBuilder = window.BlobBuilder || window.WebKitBlobBuilder || window.MozBlobBuilder;
+	const URL = window.URL || window.webkitURL;
+	const BlobBuilder = window.BlobBuilder || window.WebKitBlobBuilder || window.MozBlobBuilder;
 
-	var workerViaBlobSupport = (function() {
+	const workerViaBlobSupport = (function () {
 		try {
 			new Worker(makeBlobURI(';'));
-		} catch(e) {
+		} catch (e) {
 			return false;
 		}
 		return true;
-	}());
+	})();
 
-	var transferrableObjSupport = (function() {
+	const transferrableObjSupport = (function () {
 		try {
-			var ab = new ArrayBuffer(1);
-			new Worker( makeBlobURI(';') ).postMessage(ab, [ab]);
+			const ab = new ArrayBuffer(1);
+			new Worker(makeBlobURI(';')).postMessage(ab, [ab]);
 			return !ab.byteLength;
-		} catch(e) {
+		} catch (e) {
 			return false;
 		}
-	}());
+	})();
 
 	operative.hasWorkerViaBlobSupport = workerViaBlobSupport;
 	operative.hasTransferSupport = transferrableObjSupport;
 
 	function makeBlobURI(script) {
-		var blob;
+		let blob;
 
 		try {
-			blob = new Blob([script], { type: 'text/javascript' });
+			blob = new Blob([script], {type: 'text/javascript'});
 		} catch (e) {
 			blob = new BlobBuilder();
 			blob.append(script);
@@ -415,16 +395,20 @@
 		Operative.apply(this, arguments);
 	};
 
-	var WorkerProto = Operative.BrowserWorker.prototype = operative.objCreate(Operative.prototype);
+	const WorkerProto = Operative.BrowserWorker.prototype = operative.objCreate(Operative.prototype);
 
-	WorkerProto._onWorkerMessage = function(e) {
-		var data = e.data;
+	WorkerProto._onWorkerMessage = function (e) {
+		let data = e.data;
 
 		if (typeof data === 'string' && data.indexOf('pingback') === 0) {
 			if (data === 'pingback:structuredCloningSupport=NO') {
 				// No structuredCloningSupport support (marshal JSON from now on):
-				this._marshal = function(o) { return JSON.stringify(o); };
-				this._demarshal = function(o) { return JSON.parse(o); };
+				this._marshal = function (o) {
+					return JSON.stringify(o);
+				};
+				this._demarshal = function (o) {
+					return JSON.parse(o);
+				};
 			}
 
 			this.isContextReady = true;
@@ -433,7 +417,6 @@
 			});
 			this._dequeueAll();
 			return;
-
 		}
 
 		data = this._demarshal(data);
@@ -463,17 +446,17 @@
 		}
 	};
 
-	WorkerProto._isWorkerViaBlobSupported = function() {
+	WorkerProto._isWorkerViaBlobSupported = function () {
 		return workerViaBlobSupport;
 	};
 
-	WorkerProto._setup = function() {
-		var self = this;
+	WorkerProto._setup = function () {
+		const self = this;
 
-		var worker;
-		var selfURL = this._getSelfURL();
-		var blobSupport = this._isWorkerViaBlobSupported();
-		var script = this._buildContextScript(
+		let worker;
+		const selfURL = this._getSelfURL();
+		const blobSupport = this._isWorkerViaBlobSupported();
+		let script = this._buildContextScript(
 			// The script is not included if we're Eval'ing this file directly:
 			blobSupport ? workerBoilerScript : ''
 		);
@@ -483,13 +466,12 @@
 		}
 
 		if (blobSupport) {
-			worker = this.worker = new Worker( makeBlobURI(script) );
+			worker = this.worker = new Worker(makeBlobURI(script));
 		}	else {
-
 			if (!selfURL) {
 				throw new Error('Operaritve: No operative.js URL available. Please set via operative.setSelfURL(...)');
 			}
-			worker = this.worker = new Worker( selfURL );
+			worker = this.worker = new Worker(selfURL);
 			// Marshal-agnostic initial message is boiler-code:
 			// (We don't yet know if structured-cloning is supported so we send a string)
 			worker.postMessage('EVAL|' + script);
@@ -498,13 +480,13 @@
 		worker.postMessage('EVAL|self.hasTransferSupport=' + transferrableObjSupport);
 		worker.postMessage(['PING']); // Initial PING
 
-		worker.addEventListener('message', function(e) {
+		worker.addEventListener('message', e => {
 			self._onWorkerMessage(e);
 		});
 	};
 
-	WorkerProto._postMessage = function(msg) {
-		var transfers = transferrableObjSupport && msg.transfers;
+	WorkerProto._postMessage = function (msg) {
+		const transfers = transferrableObjSupport && msg.transfers;
 		return transfers ?
 			this.worker.postMessage(msg, transfers.value) :
 			this.worker.postMessage(
@@ -512,16 +494,16 @@
 			);
 	};
 
-	WorkerProto._runMethod = function(methodName, token, args, transfers) {
+	WorkerProto._runMethod = function (methodName, token, args, transfers) {
 		this._postMessage({
 			method: methodName,
-			args: args,
-			token: token,
-			transfers: transfers
+			args,
+			token,
+			transfers
 		});
 	};
 
-	WorkerProto.destroy = function() {
+	WorkerProto.destroy = function () {
 		this.worker.terminate();
 		Operative.prototype.destroy.call(this);
 	};
@@ -532,173 +514,168 @@
  *	this'll be executed within an worker, not here.
  *	Indented @ Zero to make nicer debug code within worker
  */
-function workerBoilerScript() {
+	function workerBoilerScript() {
+		let postMessage = self.postMessage;
+		let structuredCloningSupport = null;
+		const toString = {}.toString;
 
-	var postMessage = self.postMessage;
-	var structuredCloningSupport = null;
-	var toString = {}.toString;
-
-	self.console = {};
-	self.isWorker = true;
+		self.console = {};
+		self.isWorker = true;
 
 	// Provide basic console interface:
-	['log', 'debug', 'error', 'info', 'warn', 'time', 'timeEnd'].forEach(function(meth) {
-		self.console[meth] = function() {
-			postMessage({
-				cmd: 'console',
-				method: meth,
-				args: [].slice.call(arguments)
-			});
-		};
-	});
+		['log', 'debug', 'error', 'info', 'warn', 'time', 'timeEnd'].forEach(meth => {
+			self.console[meth] = function () {
+				postMessage({
+					cmd: 'console',
+					method: meth,
+					args: [].slice.call(arguments)
+				});
+			};
+		});
 
-	self.addEventListener('message', function(e) {
+		self.addEventListener('message', e => {
+			let data = e.data;
 
-		var data = e.data;
+			if (typeof data === 'string' && data.indexOf('EVAL|') === 0) {
+				eval(data.substring(5));
+				return;
+			}
 
-		if (typeof data == 'string' && data.indexOf('EVAL|') === 0) {
-			eval(data.substring(5));
-			return;
-		}
-
-		if (structuredCloningSupport == null) {
-
-			// e.data of ['PING'] (An array) indicates structuredCloning support
+			if (structuredCloningSupport == null) {
+			// E.data of ['PING'] (An array) indicates structuredCloning support
 			// e.data of '"PING"' (A string) indicates no support (Array has been serialized)
-			structuredCloningSupport = e.data[0] === 'PING';
+				structuredCloningSupport = e.data[0] === 'PING';
 
 			// Pingback to parent page:
-			self.postMessage(
+				self.postMessage(
 				structuredCloningSupport ?
 					'pingback:structuredCloningSupport=YES' :
 					'pingback:structuredCloningSupport=NO'
 			);
 
-			if (!structuredCloningSupport) {
-				postMessage = function(msg) {
+				if (!structuredCloningSupport) {
+					postMessage = function (msg) {
 					// Marshal before sending
-					return self.postMessage(JSON.stringify(msg));
-				};
+						return self.postMessage(JSON.stringify(msg));
+					};
+				}
+
+				return;
 			}
 
-			return;
-		}
-
-		if (!structuredCloningSupport) {
+			if (!structuredCloningSupport) {
 			// Demarshal:
-			data = JSON.parse(data);
-		}
+				data = JSON.parse(data);
+			}
 
-		var defs = data.definitions;
-		var isDeferred = false;
-		var args = data.args;
+			const defs = data.definitions;
+			let isDeferred = false;
+			const args = data.args;
 
-		if (defs) {
+			if (defs) {
 			// Initial definitions:
-			for (var i in defs) {
-				self[i] = defs[i];
+				for (const i in defs) {
+					self[i] = defs[i];
+				}
+				return;
 			}
-			return;
-		}
 
-		function callback() {
+			function callback() {
 			// Callback function to be passed to operative method
-			returnResult({
-				args: [].slice.call(arguments)
-			});
-		}
+				returnResult({
+					args: [].slice.call(arguments)
+				});
+			}
 
-		callback.transfer = function() {
-			var args = [].slice.call(arguments);
-			var transfers = extractTransfers(args);
+			callback.transfer = function () {
+				const args = [].slice.call(arguments);
+				const transfers = extractTransfers(args);
 			// Callback function to be passed to operative method
-			returnResult({
-				args: args
-			}, transfers);
-		};
-
-		args.push(callback);
-
-		self.deferred = function() {
-			isDeferred = true;
-			var def = {};
-			function resolve(r, transfers) {
 				returnResult({
-					isDeferred: true,
-					action: 'resolve',
-					args: [r]
+					args
 				}, transfers);
-				return def;
-			}
-			function reject(r, transfers) {
-				returnResult({
-					isDeferred: true,
-					action: 'reject',
-					args: [r]
-				}, transfers);
-			}
+			};
+
+			args.push(callback);
+
+			self.deferred = function () {
+				isDeferred = true;
+				const def = {};
+				function resolve(r, transfers) {
+					returnResult({
+						isDeferred: true,
+						action: 'resolve',
+						args: [r]
+					}, transfers);
+					return def;
+				}
+				function reject(r, transfers) {
+					returnResult({
+						isDeferred: true,
+						action: 'reject',
+						args: [r]
+					}, transfers);
+				}
 			// Deprecated:
-			def.fulfil = def.fulfill = def.resolve = function(value) {
-				return resolve(value);
+				def.fulfil = def.fulfill = def.resolve = function (value) {
+					return resolve(value);
+				};
+				def.reject = function (value) {
+					return reject(value);
+				};
+				def.transferResolve = function (value) {
+					const transfers = extractTransfers(arguments);
+					return resolve(value, transfers);
+				};
+				def.transferReject = function (value) {
+					const transfers = extractTransfers(arguments);
+					return reject(value, transfers);
+				};
+				return def;
 			};
-			def.reject = function(value) {
-				return reject(value);
-			};
-			def.transferResolve = function(value) {
-				var transfers = extractTransfers(arguments);
-				return resolve(value, transfers);
-			};
-			def.transferReject = function(value) {
-				var transfers = extractTransfers(arguments);
-				return reject(value, transfers);
-			};
-			return def;
-		};
 
 		// Call actual operative method:
-		var result = self[data.method].apply(self, args);
+			const result = self[data.method].apply(self, args);
 
-		if (!isDeferred && result !== void 0) {
+			if (!isDeferred && result !== void 0) {
 			// Deprecated direct-returning as of 0.2.0
-			returnResult({
-				args: [result]
-			});
-		}
-
-		self.deferred = function() {
-			throw new Error('Operative: deferred() called at odd time');
-		};
-
-		function returnResult(res, transfers) {
-			postMessage({
-				cmd: 'result',
-				token: data.token,
-				result: res
-			}, hasTransferSupport && transfers || []);
-		}
-
-		function extractTransfers(args) {
-			var transfers = args[args.length - 1];
-
-			if (toString.call(transfers) !== '[object Array]') {
-				throw new Error('Operative: callback.transfer() must be passed an Array of transfers as its last arguments');
+				returnResult({
+					args: [result]
+				});
 			}
 
-			return transfers;
-		}
-	});
-}
+			self.deferred = function () {
+				throw new Error('Operative: deferred() called at odd time');
+			};
 
+			function returnResult(res, transfers) {
+				postMessage({
+					cmd: 'result',
+					token: data.token,
+					result: res
+				}, hasTransferSupport && transfers || []);
+			}
+
+			function extractTransfers(args) {
+				const transfers = args[args.length - 1];
+
+				if (toString.call(transfers) !== '[object Array]') {
+					throw new Error('Operative: callback.transfer() must be passed an Array of transfers as its last arguments');
+				}
+
+				return transfers;
+			}
+		});
+	}
 })();
 
-(function() {
-
-	if (typeof window == 'undefined' && self.importScripts) {
+(function () {
+	if (typeof window === 'undefined' && self.importScripts) {
 		// Exit if operative.js is being loaded as worker (no blob support flow);
 		return;
 	}
 
-	var Operative = operative.Operative;
+	const Operative = operative.Operative;
 
 	/**
 	 * Operative IFrame
@@ -707,34 +684,32 @@ function workerBoilerScript() {
 		Operative.apply(this, arguments);
 	};
 
-	var IframeProto = Operative.Iframe.prototype = operative.objCreate(Operative.prototype);
+	const IframeProto = Operative.Iframe.prototype = operative.objCreate(Operative.prototype);
 
-	var _loadedMethodNameI = 0;
+	let _loadedMethodNameI = 0;
 
-	IframeProto._setup = function() {
-
-		var self = this;
-		var loadedMethodName = '__operativeIFrameLoaded' + (++_loadedMethodNameI);
+	IframeProto._setup = function () {
+		const self = this;
+		const loadedMethodName = '__operativeIFrameLoaded' + (++_loadedMethodNameI);
 
 		this.module.isWorker = false;
 
-		var iframe = this.iframe = document.body.appendChild(
+		const iframe = this.iframe = document.body.appendChild(
 			document.createElement('iframe')
 		);
 
 		iframe.style.display = 'none';
 
-		var iWin = this.iframeWindow = iframe.contentWindow;
-		var iDoc = iWin.document;
+		const iWin = this.iframeWindow = iframe.contentWindow;
+		const iDoc = iWin.document;
 
 		// Cross browser (tested in IE8,9) way to call method from within
 		// IFRAME after all < script >s have loaded:
-		window[loadedMethodName] = function() {
-
+		window[loadedMethodName] = function () {
 			window[loadedMethodName] = null;
 
-			var script = iDoc.createElement('script');
-			var js = self._buildContextScript(iframeBoilerScript);
+			const script = iDoc.createElement('script');
+			const js = self._buildContextScript(iframeBoilerScript);
 
 			if (script.text !== void 0) {
 				script.text = js;
@@ -744,18 +719,17 @@ function workerBoilerScript() {
 
 			iDoc.documentElement.appendChild(script);
 
-			for (var i in self.dataProperties) {
+			for (const i in self.dataProperties) {
 				iWin[i] = self.dataProperties[i];
 			}
 
 			self.isContextReady = true;
 			self._dequeueAll();
-
 		};
 
 		iDoc.open();
 
-		var documentContent = '';
+		let documentContent = '';
 
 		if (this.dependencies.length) {
 			documentContent += '\n<script src="' + this.dependencies.join('"><\/script><script src="') + '"><\/script>';
@@ -768,18 +742,17 @@ function workerBoilerScript() {
 		);
 
 		iDoc.close();
-
 	};
 
-	IframeProto._runMethod = function(methodName, token, args) {
-		var self = this;
+	IframeProto._runMethod = function (methodName, token, args) {
+		const self = this;
 
-		var callback = this.callbacks[token];
-		var deferred = this.deferreds[token];
+		const callback = this.callbacks[token];
+		const deferred = this.deferreds[token];
 
-		this.iframeWindow.__run__(methodName, args, function(result) {
-			var cb = callback;
-			var df = deferred;
+		this.iframeWindow.__run__(methodName, args, function (result) {
+			const cb = callback;
+			const df = deferred;
 
 			if (cb) {
 				cb.apply(self, arguments);
@@ -789,7 +762,7 @@ function workerBoilerScript() {
 		}, deferred);
 	};
 
-	IframeProto.destroy = function() {
+	IframeProto.destroy = function () {
 		this.iframe.parentNode.removeChild(this.iframe);
 		Operative.prototype.destroy.call(this);
 	};
@@ -800,43 +773,39 @@ function workerBoilerScript() {
  *	this'll be executed within an iframe, not here.
  *	Indented @ Zero to make nicer debug code within worker
  */
-function iframeBoilerScript() {
-
+	function iframeBoilerScript() {
 	// Called from parent-window:
-	window.__run__ = function(methodName, args, cb, deferred) {
+		window.__run__ = function (methodName, args, cb, deferred) {
+			let isDeferred = false;
 
-		var isDeferred = false;
+			window.deferred = function () {
+				isDeferred = true;
+				return deferred;
+			};
 
-		window.deferred = function() {
-			isDeferred = true;
-			return deferred;
-		};
-
-		function callback() {
-			return cb.apply(this, arguments);
-		}
+			function callback() {
+				return cb.apply(this, arguments);
+			}
 
 		// Define fallback transfer() method:
-		callback.transfer = function() {
+			callback.transfer = function () {
 			// Remove [transfers] list (last argument)
-			return cb.apply(this, [].slice.call(arguments, 0, arguments.length - 1));
+				return cb.apply(this, [].slice.call(arguments, 0, arguments.length - 1));
+			};
+
+			if (cb) {
+				args.push(callback);
+			}
+
+			const result = window[methodName].apply(window, args);
+
+			window.deferred = function () {
+				throw new Error('Operative: deferred() called at odd time');
+			};
+
+			if (!isDeferred && result !== void 0) {
+				callback(result);
+			}
 		};
-
-		if (cb) {
-			args.push(callback);
-		}
-
-		var result = window[methodName].apply(window, args);
-
-		window.deferred = function() {
-			throw new Error('Operative: deferred() called at odd time');
-		};
-
-
-		if (!isDeferred && result !== void 0) {
-			callback(result);
-		}
-	};
-}
-
+	}
 })();

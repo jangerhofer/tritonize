@@ -1,25 +1,49 @@
-import React, {Component} from 'react';
-import logo from './logo.svg';
-import './App.css';
-import Dropzone from 'react-dropzone';
+import React, {Component} from 'react'
+import Radium from 'radium'
+import Dropzone from 'react-dropzone'
 
-const sigmoid = x => (1.0 / (1.0 + Math.pow(Math.E, (-((x - 128.0) / 32.0)))));
+import 'bulma/css/bulma.css'
+
+const styles = {
+	leftGrid: {
+		justifyContent: 'center',
+		alignItems: 'center',
+		display: 'flex'
+	},
+	rightGrid: {
+	},
+	imageDisplay: {
+		minHeight: '100vh',
+		justifyContent: 'center',
+		alignItems: 'center',
+		display: 'flex'
+	}
+}
 
 class App extends Component {
 
 	constructor() {
-		super();
-		this.state = {files: []};
+		super()
+		this.state = {files: []}
 	}
-
 
 	render() {
 		return (
-      <div className="App">
+			<div className="App">
+				<div className="columns is-desktop">
+					<div className="column is-one-third-desktop has-text-centered" style={styles.leftGrid}>
+					MENU BAR HERE
+					</div>
+					<div className="column" style={styles.rightGrid}>
+						<div style={styles.imageDisplay}>
 
-      </div>
-		);
+					IMAGE PICKER HERE
+					</div>
+					</div>
+				</div>
+			</div>
+		)
 	}
 }
 
-export default App;
+export default Radium(App)
