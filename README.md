@@ -1,6 +1,17 @@
 # Tritonize Web
 
+
+
 This project brings [@minimaxir's](https://twitter.com/minimaxir) [Tritonize Python project](https://github.com/minimaxir/tritonize) to the web.
+
+It turns any standard image...
+
+*e.g. the risqué but widely referenced [Lenna portrait.](https://www.cs.cmu.edu/~chuck/lennapg/lenna.shtml)*
+![](public/sampleImage.png)
+
+...into a number of sketch-like images.
+
+![](public/tritonize_collage.png)
 
 ## Tech.
 - Image manipulation happens via the [HTML5 Canvas.](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API)  The canvas returns a special sort of JS array (specifically, a [Uint8ClampedArray](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8ClampedArray)) which represents each pixel in an image.  Image filters can be applied by manipulating that array, then "painting" the new array back to the canvas.
