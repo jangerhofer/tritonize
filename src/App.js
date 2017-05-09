@@ -37,6 +37,7 @@ class App extends Component {
 		return (
 			<Provider store={store}>
 				<div className="App">
+					<center><h3>The filter may take a short while to apply to all images.  Please be patient.</h3><p><a href="https://github.com/jangerhofer/tritonize" target="_blank">Code and explanation here!</a></p></center>
 					<div className="columns is-desktop">
 						<div className="column is-one-third-desktop has-text-centered" style={styles.leftGrid}>
 							<Menu/>
