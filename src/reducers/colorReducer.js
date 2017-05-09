@@ -15,7 +15,7 @@ export default (state = {
 		case 'COLOR/CHANGE':
 			return {
 				...state,
-				colors : [
+				colors: [
 					...state.colors.slice(0, action.index),
 					action.color,
 					...state.colors.slice(action.index + 1)

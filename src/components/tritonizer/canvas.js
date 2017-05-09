@@ -7,9 +7,13 @@ function sigmoid(x) {
 }
 
 function tritonize(data, colorList) {
+	function sigmoid(x) {
+		return 1.0 / (1.0 + Math.pow(Math.E, (-((x - 128.0) / 32.0))))
+	}
+
 	for (let i = 0; i < data.length; i += 4) {
 		const grayScale = data[i] * 299 / 1000 + data[i + 1] * 587 / 1000 + data[i + 2] * 114 / 1000
-		const threshold = sigmoid(grayScale)
+		const threshold = this.sigmoid(grayScale)
 		const matchedColor = colorList[Math.floor(threshold * colorList.length)]
 		data[i] = matchedColor[0]
 		data[i + 1] = matchedColor[1]
