@@ -1,6 +1,6 @@
 import React, {Component} from 'react'
 import Radium from 'radium'
-import Dropzone from 'react-dropzone'
+import FilePicker from './components/filePicker'
 
 import 'bulma/css/bulma.css'
 
@@ -16,7 +16,8 @@ const styles = {
 		minHeight: '100vh',
 		justifyContent: 'center',
 		alignItems: 'center',
-		display: 'flex'
+		display: 'flex',
+		margin: '1rem'
 	}
 }
 
@@ -36,9 +37,8 @@ class App extends Component {
 					</div>
 					<div className="column" style={styles.rightGrid}>
 						<div style={styles.imageDisplay}>
-
-					IMAGE PICKER HERE
-					</div>
+							<FilePicker/>
+						</div>
 					</div>
 				</div>
 			</div>
