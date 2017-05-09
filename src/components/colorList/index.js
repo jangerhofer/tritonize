@@ -14,28 +14,21 @@ const styles = {
 
 class ColorList extends Component {
 	render() {
-		if (this.props.colorList.length === 0) {
-			return (
-				<div>
-					<ul style={styles.list}>
-						<ColorCell color={'rgb(255,255,255)'}>+</ColorCell>
-					</ul>
-				</div>)
-		}
-		return (<div>
-			<ul style={styles.list}>
-				{this.props.colorList.map(color => {
-					return <ColorCell key={color} color={`rgb(${color[0]},${color[1]},${color[2]})`}/>
-				})}
-				<ColorCell isNew color={'rgb(255,255,255)'}>+</ColorCell>
+		return (
+			<div>
+				<ul style={styles.list}>
+					{this.props.colorList.map((color, i) => {
+						return <ColorCell key={i} index={i} color={`rgb(${color[0]},${color[1]},${color[2]})`}/>
+					})}
+					<ColorCell isNew color={'rgb(255,255,255)'}>+</ColorCell>
 				Blur Amount: <Slider
-					onChange={val => this.props.handleBlurChange(val)} min={0} max={5} defaultValue={this.props.blurAmount}
-					                                                                   />
-				{this.props.blurAmount}
-			</ul>
-			<button onClick={this.props.handleClearColors}>Clear Colors</button>
-			<button onClick={this.props.handleClearFile}>Clear File</button>
-		</div>)
+					onChange={val => this.props.handleBlurChange(val)} min={0} max={5} defaultValue={this.props.blurAmount} disabled
+					                                                                                                        />
+					{this.props.blurAmount}
+				</ul>
+				<button onClick={this.props.handleClearColors}>Clear Colors</button>
+				<button onClick={this.props.handleClearFile}>Clear File</button>
+			</div>)
 	}
 }
 

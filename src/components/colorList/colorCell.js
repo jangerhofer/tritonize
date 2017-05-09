@@ -3,7 +3,7 @@ import {connect} from 'react-redux'
 import PropTypes from 'prop-types'
 import {Tooltip} from 'react-tippy'
 import {SketchPicker} from 'react-color'
-import Chroma from 'chroma-js'
+import chroma from 'chroma-js'
 import {FaTimesCircle} from 'react-icons/lib/fa'
 
 const styleFunc = props => ({
@@ -21,18 +21,26 @@ const styleFunc = props => ({
 })
 
 class ColorCell extends Component {
+
+	handleClick() {
+		if (this.props.isNew) {
+			this.props.handleAddColor(chroma('white').rgb())
+		}
+	}
+
 	render() {
 		const styles = styleFunc(this.props)
-		return (<div style={styles.li}>
+		return (<div style={styles.li} onClick={this.handleClick.bind(this)}>
 
-			<Tooltip
-				html={(<SketchPicker/>)}
+			{this.props.isNew ? <div style={styles.cell}>{this.props.children}</div> : <Tooltip
+				html={(<SketchPicker onChange={this.props.handleColorChange}/>)}
 				position="bottom"
 				trigger="click"
 				>
 				<div style={styles.cell}>{this.props.children}</div>
-			</Tooltip>
-			<FaTimesCircle onClick={this.props.handleDeleteColor}/>
+			</Tooltip> }
+
+			{this.props.isNew ? null : <FaTimesCircle onClick={this.props.handleDeleteColor}/> }
 		</div>
 
 		)
@@ -41,7 +49,11 @@ class ColorCell extends Component {
 
 export default connect(null, (dispatch, ownProps) => ({
 	handleDeleteColor: () => {
-		dispatch({type: 'COLOR/REMOVE', color: Chroma(ownProps.color).rgb()})
+		dispatch({type: 'COLOR/REMOVE', color: chroma(ownProps.color).rgb()})
+	},
+	handleAddColor: color => dispatch({type: 'COLOR/ADD', color}),
+	handleColorChange: (color, event) => {
+		dispatch({type: 'COLOR/CHANGE', index: ownProps.index, color: [color.rgb.r, color.rgb.g, color.rgb.b]})
 	}
 }))(ColorCell)
 

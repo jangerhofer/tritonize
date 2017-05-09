@@ -5,12 +5,12 @@ export default (state = {
 		case 'FILE/ADD':
 			return {
 				...state,
-				file : action.file
+				file: action.file
 			}
 		case 'FILE/CLEAR':
 			return {
 				...state,
-				file : null
+				file: null
 			}
 		default:
 			return state

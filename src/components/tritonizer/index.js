@@ -10,7 +10,7 @@ class Tritonizer extends Component {
 		if (this.props.colorList.length <= 1) {
 			return <p>Please choose more than one color; otherwise, your image will show up as a solid rectangle.</p>
 		}
-		const colorPerms = Combinatorics.permutation(this.props.colorList).toArray()
+		const colorPerms = Combinatorics.permutationCombination(this.props.colorList).toArray().filter(list => list.length > 1)
 		const canvasArray = []
 		let idNo = 0
 		while (idNo < colorPerms.length) {
