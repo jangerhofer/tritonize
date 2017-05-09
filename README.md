@@ -28,3 +28,4 @@ It turns any standard image...
 - [ ] Add adjustable blur radius to image manipulation.  Current tri-tone filter leaves a lot of grains on the image.  Blur will help smooth contrasting edges.
 - [ ] Color picker.  Choose any (reasonable, given that page will render n! images) number of colors.
 - [ ] Image drag & drop.  Drop an image into the page and the page will take other settings (blur radius, possibly blur iterations -- one argument to the blur filter, and colors) and create display of all possible permutations!
+- [ ] *Investigate [FabricJS?](fabricjs.com)*
