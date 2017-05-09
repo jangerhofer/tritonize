@@ -4,19 +4,13 @@ import Combinatorics from 'js-combinatorics'
 
 import Canvas from './canvas'
 
-const colorList = [
-                [198, 12, 48],
-                [255, 255, 255]
-              //  [0, 0, 0],
-            //    [228, 219, 204],
-              //  [60, 74, 198],
-                // [79, 243, 222]
-]
-
 class Tritonizer extends Component {
 
 	render() {
-		const colorPerms = Combinatorics.permutation(colorList).toArray()
+		if (this.props.colorList.length <= 1) {
+			return <p>Please choose more than one color; otherwise, your image will show up as a solid rectangle.</p>
+		}
+		const colorPerms = Combinatorics.permutation(this.props.colorList).toArray()
 		const canvasArray = []
 		let idNo = 0
 		while (idNo < colorPerms.length) {
@@ -30,5 +24,6 @@ class Tritonizer extends Component {
 }
 
 export default connect(state => ({
-  image : state.FileReducer.file
+	image: state.FileReducer.file,
+	colorList: state.ColorReducer.colors
 }))(Tritonizer)

@@ -1,5 +1,8 @@
 import React, {Component} from 'react'
 import {connect} from 'react-redux'
+import Slider from 'rc-slider'
+import 'rc-slider/assets/index.css'
+
 import ColorCell from './colorCell'
 
 const styles = {
@@ -22,21 +25,29 @@ class ColorList extends Component {
 		return (<div>
 			<ul style={styles.list}>
 				{this.props.colorList.map(color => {
-					return <ColorCell key={color} color={`rgb(${color[0]},${color[1]}, ${color[2]})`}/>
+					return <ColorCell key={color} color={`rgb(${color[0]},${color[1]},${color[2]})`}/>
 				})}
 				<ColorCell isNew color={'rgb(255,255,255)'}>+</ColorCell>
+				Blur Amount: <Slider
+					onChange={val => this.props.handleBlurChange(val)} min={0} max={5} defaultValue={this.props.blurAmount}
+					                                                                   />
+				{this.props.blurAmount}
 			</ul>
-			<button onClick={this.props.handleClearColors}>Reset</button>
+			<button onClick={this.props.handleClearColors}>Clear Colors</button>
+			<button onClick={this.props.handleClearFile}>Clear File</button>
 		</div>)
 	}
 }
 
 const ColorListWithData = connect(
   state => ({
-	colorList: state.ColorReducer.colors
+	colorList: state.ColorReducer.colors,
+	blurAmount: state.ColorReducer.blurAmount
 }), dispatch => {
 	return {
-		handleClearColors: () => dispatch({type: 'COLOR/RESET_LIST'})
+		handleClearColors: () => dispatch({type: 'COLOR/RESET_LIST'}),
+		handleClearFile: () => dispatch({type: 'FILE/CLEAR'}),
+		handleBlurChange: blurAmount => dispatch({type: 'COLOR/BLUR_CHANGE', blurAmount})
 	}
 }
 )(ColorList)

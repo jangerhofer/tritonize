@@ -7,6 +7,11 @@ export default (state = {
 				...state,
 				file : action.file
 			}
+		case 'FILE/CLEAR':
+			return {
+				...state,
+				file : null
+			}
 		default:
 			return state
 	}
