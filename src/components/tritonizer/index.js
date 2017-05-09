@@ -1,4 +1,5 @@
 import React, {Component} from 'react'
+import {connect} from 'react-redux'
 import Combinatorics from 'js-combinatorics'
 
 import Canvas from './canvas'
@@ -12,12 +13,10 @@ const colorList = [
                 // [79, 243, 222]
 ]
 
-export default class Tritonizer extends Component {
+class Tritonizer extends Component {
 
 	render() {
-		console.log(this.props.image)
 		const colorPerms = Combinatorics.permutation(colorList).toArray()
-		console.log(colorPerms)
 		const canvasArray = []
 		let idNo = 0
 		while (idNo < colorPerms.length) {
@@ -29,3 +28,7 @@ export default class Tritonizer extends Component {
 		</ul>)
 	}
 }
+
+export default connect(state => ({
+  image : state.FileReducer.file
+}))(Tritonizer)

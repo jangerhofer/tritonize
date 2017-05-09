@@ -33,7 +33,7 @@ class ColorList extends Component {
 
 const ColorListWithData = connect(
   state => ({
-	colorList: state.colors
+	colorList: state.ColorReducer.colors
 }), dispatch => {
 	return {
 		handleClearColors: () => dispatch({type: 'COLOR/RESET_LIST'})

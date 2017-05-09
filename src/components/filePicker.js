@@ -1,23 +1,18 @@
 import React, {Component} from 'react'
 import Dropzone from 'react-dropzone'
+import {connect} from 'react-redux'
 
 import Tritonizer from './tritonizer/'
 
-export default class FilePicker extends Component {
-	constructor() {
-		super()
-		this.state = {file: null}
-	}
+class FilePicker extends Component {
 
 	onDrop(file) {
-		this.setState({
-			file: file[0]
-		})
+		this.props.addNewFile(file[0])
 	}
 
 	render() {
-		if (this.state.file) {
-			return <Tritonizer image={this.state.file}/>
+		if (this.props.file) {
+			return <Tritonizer/>
 		}
 		return (
 			<section>
@@ -27,10 +22,21 @@ export default class FilePicker extends Component {
 							alert('Please drop a valid image file.')
 						}} multiple={false}
 						   >
-						<p>Try dropping some files here, or click to select files to upload.</p>
+						<center><p>Drop a valid image file here.</p></center>
 					</Dropzone>
 				</div>
 			</section>
 		)
 	}
 }
+
+export default connect(
+	state => ({
+		file: state.FileReducer.file
+	}),
+	dispatch => ({
+		addNewFile: file => {
+			dispatch({type: 'FILE/ADD', file})
+		}
+	})
+)(FilePicker)

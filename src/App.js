@@ -26,48 +26,28 @@ const styles = {
 }
 
 // Set up Redux
-const colorReducer = (state = {}, action) => {
-	switch (action.type) {
-		case 'COLOR/RESET_LIST':
-			return {
-				...state,
-				colors: []
-			}
-		default:
-			return state
-	}
-}
+import rootReducer from './reducers'
 
 const enhancer = composeWithDevTools()
-const store = createStore(colorReducer, {
-	colors: [
-		[0, 0, 0]
-	]
-}, enhancer)
-
+const store = createStore(rootReducer, {}, enhancer)
 
 class App extends Component {
-
-	constructor() {
-		super()
-		this.state = {files: []}
-	}
 
 	render() {
 		return (
 			<Provider store={store}>
-			<div className="App">
-				<div className="columns is-desktop">
-					<div className="column is-one-third-desktop has-text-centered" style={styles.leftGrid}>
-						<Menu/>
-					</div>
-					<div className="column" style={styles.rightGrid}>
-						<div style={styles.imageDisplay}>
-							<FilePicker/>
+				<div className="App">
+					<div className="columns is-desktop">
+						<div className="column is-one-third-desktop has-text-centered" style={styles.leftGrid}>
+							<Menu/>
+						</div>
+						<div className="column" style={styles.rightGrid}>
+							<div style={styles.imageDisplay}>
+								<FilePicker/>
+							</div>
 						</div>
 					</div>
 				</div>
-			</div>
 			</Provider>
 		)
 	}

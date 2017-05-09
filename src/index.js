@@ -4,19 +4,19 @@ import ReactDOM from 'react-dom'
 import App from './App'
 import './index.css'
 
-const rootEl = document.getElementById('root');
+const rootEl = document.getElementById('root')
 
 ReactDOM.render(
-  <App />,
+	<App/>,
   rootEl
-);
+)
 
 if (module.hot) {
-  module.hot.accept('./App', () => {
-    const NextApp = require('./App').default;
-    ReactDOM.render(
-      <NextApp />,
+	module.hot.accept('./App', () => {
+		const NextApp = require('./App').default
+		ReactDOM.render(
+			<NextApp/>,
       rootEl
-    );
-  });
+    )
+	})
 }
