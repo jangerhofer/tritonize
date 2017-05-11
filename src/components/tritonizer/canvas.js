@@ -1,4 +1,5 @@
 import React, {Component} from 'react'
+import _ from 'lodash'
 
 import StackBlur, {mul_table, shg_table, BlurStack} from 'stackblur-canvas'
 const operative = window.operative
@@ -89,6 +90,41 @@ export default class Canvas extends Component {
 			imgData.data.set(imageData)
 			ctx.putImageData(imgData, 0, 0)
 		})
+	}
+
+	shouldComponentUpdate(nextProps, nextState) {
+		// Wait for canvas to render somehow!!
+
+		// Check if colors are the same.
+		if (_.isEqual(this.props.colorList, nextProps.colorList)) {
+			return false
+		}
+
+		// If only one color changed, then run an inexpensive call to replace the previous color.
+		if (this.props.colorList.length === nextProps.colorList.length) {
+			const oldColor = _.differenceWith(this.props.colorList, nextProps.colorList, _.isEqual)
+			const newColor = _.differenceWith(nextProps.colorList, this.props.colorList, _.isEqual)
+			if (oldColor.length === 1 && newColor.length === 1) {
+				console.log('Changing colors...', oldColor, ' to ', newColor)
+				const canvas = this.refs.canvas
+				const ctx = canvas.getContext('2d')
+				const quadrant = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height)
+				console.log(quadrant)
+				for (let i = 0; i < quadrant.data.length; i += 4) {
+					if (quadrant.data[i] === oldColor[0][0] && quadrant.data[i + 1] === oldColor[0][1] && quadrant.data[i + 2] === oldColor[0][2]) {
+						quadrant.data[i] = newColor[0][0]
+						quadrant.data[i + 1] = newColor[0][1]
+						quadrant.data[i + 2] = newColor[0][2]
+					}
+				}
+				ctx.putImageData(quadrant, 0, 0)
+			}
+			return false
+		}
+
+		console.log('UPDATING', this)
+		console.log(nextState, nextProps)
+		return true
 	}
 
 	render() {
