@@ -33,6 +33,16 @@ const imageManipulator = operative({
 	tritonize,
 	run(jobData, cb) {
 		cb(this.tritonize(jobData.imageData, jobData.colorList), jobData)
+	},
+	update(imageData, newColor, oldColor, cb) {
+		for (let i = 0; i < imageData.length; i += 4) {
+			if (imageData[i] === oldColor[0][0] && imageData[i + 1] === oldColor[0][1] && imageData[i + 2] === oldColor[0][2]) {
+				imageData[i] = newColor[0][0]
+				imageData[i + 1] = newColor[0][1]
+				imageData[i + 2] = newColor[0][2]
+			}
+		}
+		cb(imageData)
 	}
 })
 
@@ -52,6 +62,7 @@ const styles = {
 		maxHeight: '100%'
 	}
 }
+
 export default class Canvas extends Component {
 
 	constructor(props) {
@@ -105,25 +116,19 @@ export default class Canvas extends Component {
 			const oldColor = _.differenceWith(this.props.colorList, nextProps.colorList, _.isEqual)
 			const newColor = _.differenceWith(nextProps.colorList, this.props.colorList, _.isEqual)
 			if (oldColor.length === 1 && newColor.length === 1) {
-				console.log('Changing colors...', oldColor, ' to ', newColor)
 				const canvas = this.refs.canvas
 				const ctx = canvas.getContext('2d')
 				const quadrant = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height)
-				console.log(quadrant)
-				for (let i = 0; i < quadrant.data.length; i += 4) {
-					if (quadrant.data[i] === oldColor[0][0] && quadrant.data[i + 1] === oldColor[0][1] && quadrant.data[i + 2] === oldColor[0][2]) {
-						quadrant.data[i] = newColor[0][0]
-						quadrant.data[i + 1] = newColor[0][1]
-						quadrant.data[i + 2] = newColor[0][2]
-					}
-				}
-				ctx.putImageData(quadrant, 0, 0)
+
+				// Run WW
+				imageManipulator.update(quadrant.data, newColor, oldColor, newImageData => {
+					quadrant.data.set(newImageData)
+					ctx.putImageData(quadrant, 0, 0)
+				})
 			}
 			return false
 		}
 
-		console.log('UPDATING', this)
-		console.log(nextState, nextProps)
 		return true
 	}
 
