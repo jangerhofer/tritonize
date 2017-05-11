@@ -111,6 +111,7 @@
                 }
 
                 imageManipulator.run(jobData, function(imageData, originalJobData) {
+                  console.log(imageData);
                     writeToCanvas("canvas_" + originalJobData.index, imageData)
                 })
 
@@ -122,10 +123,6 @@
             var colorList = [
                 [198, 12, 48],
                 [255, 255, 255],
-                [0, 0, 0],
-                [228, 219, 204],
-                [60, 74, 198],
-                [79, 243, 222]
 
             ]
             var colorPerms = Combinatorics.permutation(colorList).toArray();
@@ -135,6 +132,22 @@
             };
 
         }
+
+        function go(findColor, replaceColor) {
+          var c=document.getElementById("canvas_0");
+          var ctx=c.getContext("2d");
+          var quadrant = ctx.getImageData(0,0,ctx.canvas.width,ctx.canvas.height)
+          for (var i = 0; i < quadrant.data.length; i+=4) {
+            if (quadrant.data[i] === findColor[0] && quadrant.data[i+1] === findColor[1] && quadrant.data[i+2] === findColor[2]) {
+              quadrant.data[i] = replaceColor[0]
+              quadrant.data[i+1] = replaceColor[1]
+              quadrant.data[i+2] = replaceColor[2]
+            }
+          }
+          ctx.putImageData(quadrant, 0, 0);
+        }
+
+
     </script>
 
     <!--
@@ -154,6 +167,7 @@
     <div id="root"></div>
     <center><h3>The filter may take a short while to apply to all images.  Once an image has been filtered, clicking on it will download a copy.</h3>
     <p><a href="https://github.com/jangerhofer/tritonize" target="_blank">Code and explanation here!</a></p></center>
+    <button onclick="go([198,12,48], [0,0,0])">Red to Black!</button>
     <!--
       This HTML file is a template.
       If you open it directly in the browser, you will see an empty page.
