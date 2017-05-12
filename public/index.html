@@ -7,35 +7,71 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/camanjs/4.1.2/caman.full.min.js"></script>
     <script src="combinatorics.js"></script>
     <script src="worker.js"></script>
-    <script src="FastBlur.js"></script>
-    <script src="StackBlur.js"></script>
 
-    <!--
-      Notice the use of %PUBLIC_URL% in the tag above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/4.5.1/pixi.min.js"></script>
 
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
+    <script>
+    window.onload = function () {
+        var fragmentSrc = [
+            "uniform vec4 colorList;",
+            "void main() {",
+          //  "  float GrayScale =  (gl_FragCoord.r * 299.0 / 1000.0) + (gl_FragCoord.g * 587.0 / 1000.0) + (gl_FragCoord.b * 114.0 / 1000.0);",
+          //  "  float sigmoidThreshold = 1.0 / (1.0 + pow(2.7182818284590452353602874713527, (-((GrayScale - 128.0) /32.0))));",
+            "  gl_FragColor = colorList;",
+            "}",
+        ];
+
+
+
+        var renderer = PIXI.autoDetectRenderer(4000, 3000);
+        document.body.appendChild(renderer.view);
+
+        // create the root of the scene graph
+        var stage = new PIXI.Container();
+
+
+        function CustomFilter(fragmentSource) {
+
+            PIXI.Filter.call(this,
+                // vertex shader
+                null,
+                // fragment shader
+                fragmentSource
+            );
+        }
+
+        CustomFilter.prototype = Object.create(PIXI.Filter.prototype);
+        CustomFilter.prototype.constructor = CustomFilter;
+
+        var bg = PIXI.Sprite.fromImage("bsampleImage.jpg");
+        bg.scale.set(1, 1);
+        stage.addChild(bg);
+
+
+                var filter = new CustomFilter(fragmentSrc.join('\r\n'));
+                filter.uniforms.colorList = [1.0,1.0,0.0,1.0]
+                bg.filters = [filter];
+
+        renderer.render(stage);
+
+
+
+            animate();
+
+        function animate() {
+
+          //  filter.uniforms.customUniform += 0.04;
+
+            renderer.render(stage);
+            requestAnimationFrame(animate);
+        }
+        }
+    </script>
+
     <title>Tritonize Demo</title>
-
 </head>
 
 <body>
-    <div id="root"></div>
-
-    <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
-
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
-
-      To begin the development, run `npm start`.
-      To create a production bundle, use `npm run build`.
-    -->
 </body>
 
 </html>
