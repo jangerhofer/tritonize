@@ -8,69 +8,11 @@
     <script src="combinatorics.js"></script>
     <script src="worker.js"></script>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/4.5.1/pixi.min.js"></script>
-
-    <script>
-    window.onload = function () {
-
-
-      var fragmentSrc = `
-uniform vec4 colorList[10]; // WHAT TYPE DO I NEED HERE TO PASS THE ARRY IN THE COMMENT BELOW?
-void main() {
-  float GrayScale =  (gl_FragCoord.r * 299.0 / 1000.0) + (gl_FragCoord.g * 587.0 / 1000.0) + (gl_FragCoord.b * 114.0 / 1000.0);
-  float sigmoidThreshold = 1.0 / (1.0 + pow(2.7182818284590452353602874713527, (-((GrayScale - 128.0) /32.0))));
-  gl_FragColor = colorList[0];
-}
-`;
-
-var renderer = PIXI.autoDetectRenderer(750, 750);
-document.body.appendChild(renderer.view);
-var stage = new PIXI.Container();
-
-var image = new Image()
-image.src=  "bsampleImage.jpg"
-var basetx = new PIXI.BaseTexture(image);
-var texture = new PIXI.Texture(basetx);
-console.log(texture);
-
-
-function CustomFilter(fragmentSource) {
-
-PIXI.Filter.call(this,
-  null,
-  fragmentSource
-);
-}
-
-CustomFilter.prototype = Object.create(PIXI.Filter.prototype);
-CustomFilter.prototype.constructor = CustomFilter;
-
-var bg = new PIXI.Graphics();
-bg.drawRect(0, 0, 375, 375);
-bg.endFill();
-stage.addChild(bg);
-
-var filter = new CustomFilter(fragmentSrc);
-const colorValues = [];
-for (let i = 0; i < filter.uniforms.colorList.length; i += 4) {
-const buffer = filter.uniforms.colorList.buffer;
-const byteOffset = i * Float32Array.BYTES_PER_ELEMENT;
-const length = 4;
-colorValues.push(new Float32Array(buffer, byteOffset, length));
-}
-
-colorValues[0].set([0.75, 1, 1, 1]);
-//var blurFilter1 = new PIXI.filters.BlurFilter();
-bg.filters = [filter];
-
-renderer.render(stage);
-}
-    </script>
-
     <title>Tritonize Demo</title>
 </head>
 
 <body>
+  <div id="root">
 </body>
 
 </html>

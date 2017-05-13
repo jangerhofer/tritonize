@@ -15,6 +15,8 @@
   "dependencies": {
     "bulma": "^0.4.1",
     "chroma-js": "^1.3.3",
+    "gl-react": "^3.3",
+    "gl-react-dom": "^3.3",
     "js-combinatorics": "^0.5.2",
     "lodash": "^4.17.4",
     "operative": "padolsey/operative#41/head",
