@@ -1,6 +1,7 @@
 import _ from 'lodash'
+import { ColorState, ColorAction } from '../types/index'
 
-export default (state = {
+const initialState: ColorState = {
 	colors: [
 		[198, 12, 48],
 		[255, 255, 255],
@@ -10,7 +11,9 @@ export default (state = {
 							// [79, 243, 222]
 	],
 	blurAmount: 0
-}, action) => {
+}
+
+export default (state = initialState, action: ColorAction): ColorState => {
 	switch (action.type) {
 		case 'COLOR/CHANGE':
 			return {

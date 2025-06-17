@@ -1,7 +1,7 @@
 import React, {Component} from 'react'
 import Radium from 'radium'
-import FilePicker from './components/filePicker.jsx'
-import Menu from './components/menu.jsx'
+import FilePicker from './components/filePicker.tsx'
+import Menu from './components/menu.tsx'
 import {Provider} from 'react-redux'
 import {createStore} from 'redux'
 import {composeWithDevTools} from 'redux-devtools-extension'
@@ -26,7 +26,7 @@ const styles = {
 }
 
 // Set up Redux
-import rootReducer from './reducers'
+import rootReducer from './reducers/index'
 
 const enhancer = composeWithDevTools()
 const store = createStore(rootReducer, {}, enhancer)

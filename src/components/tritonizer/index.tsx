@@ -2,7 +2,7 @@ import React, {Component} from 'react'
 import {connect} from 'react-redux'
 import Combinatorics from 'js-combinatorics'
 
-import Canvas from './canvas.jsx'
+import Canvas from './canvas.tsx'
 
 class Tritonizer extends Component {
 

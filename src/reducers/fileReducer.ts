@@ -1,6 +1,10 @@
-export default (state = {
+import { FileState, FileAction } from '../types/index'
+
+const initialState: FileState = {
 	file: null
-}, action) => {
+}
+
+export default (state = initialState, action: FileAction): FileState => {
 	switch (action.type) {
 		case 'FILE/ADD':
 			return {
