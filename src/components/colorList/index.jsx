@@ -3,7 +3,7 @@ import {connect} from 'react-redux'
 import Slider from 'rc-slider'
 import 'rc-slider/assets/index.css'
 
-import ColorCell from './colorCell'
+import ColorCell from './colorCell.jsx'
 
 const styles = {
 	list: {

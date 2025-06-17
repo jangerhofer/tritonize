@@ -2,7 +2,7 @@ import React, {Component} from 'react'
 import Dropzone from 'react-dropzone'
 import {connect} from 'react-redux'
 
-import Tritonizer from './tritonizer/'
+import Tritonizer from './tritonizer/index.jsx'
 
 class FilePicker extends Component {
 
