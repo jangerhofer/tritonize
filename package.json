@@ -5,7 +5,6 @@
   "type": "module",
   "homepage": "https://jangerhofer.github.io/tritonize/",
   "devDependencies": {
-    "@tailwindcss/cli": "^4.1.10",
     "@types/chroma-js": "^3.1.1",
     "@types/lodash": "^4.17.17",
     "@types/node": "^24.0.3",
@@ -17,7 +16,7 @@
     "postcss": "^8.5.6",
     "prop-types": "^15.8.1",
     "redux-devtools-extension": "^2.13.2",
-    "tailwindcss": "^4.1.10",
+    "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
   },
@@ -44,8 +43,7 @@
     "redux": "^3.6.0",
     "stackblur": "^1.0.0",
     "stackblur-canvas": "^1.4.0",
-    "tailwind-merge": "^3.3.1",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwind-merge": "^3.3.1"
   },
   "scripts": {
     "dev": "vite",
