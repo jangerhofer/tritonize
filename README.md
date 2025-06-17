@@ -18,8 +18,28 @@ It turns any standard image...
   <img src="public/tritonize_collage.png">
 </p>
 
-## Tech.
-- Image manipulation happens via the [HTML5 Canvas.](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API)  The canvas returns a special sort of JS array (specifically, a [Uint8ClampedArray](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8ClampedArray)) which represents each pixel in an image.  Image filters can be applied by manipulating that array, then "painting" the new array back to the canvas.
+## Tech Stack
+- **React 18** with TypeScript for type-safe component development
+- **Vite** for lightning-fast development and builds  
+- **Redux** for state management
+- **pnpm** for efficient package management
+- **HTML5 Canvas** for image manipulation - returns [Uint8ClampedArray](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8ClampedArray) representing each pixel. Image filters are applied by manipulating this array and painting back to canvas.
+
+## Development
+
+```bash
+# Install dependencies
+pnpm install
+
+# Start development server
+pnpm start
+
+# Build for production  
+pnpm build
+
+# Preview production build
+pnpm preview
+```
 
 ## To Do:
 - [x] Repeatedly load static image into DOM & Canvas (iterations depend on color permutations) and parse out image array.
