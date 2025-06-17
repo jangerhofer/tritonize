@@ -19,7 +19,6 @@ function FilePicker({ file, addNewFile }: FilePickerProps) {
 	}, [addNewFile])
 
 	const onDropRejected = useCallback(() => {
-		// Using a more modern approach instead of alert
 		console.error('Please drop a valid image file.')
 	}, [])
 
@@ -46,23 +45,23 @@ function FilePicker({ file, addNewFile }: FilePickerProps) {
 					className={`
 						border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors
 						${isDragActive 
-							? 'border-primary bg-primary/5' 
-							: 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/25'
+							? 'border-blue-500 bg-blue-50' 
+							: 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
 						}
 					`}
 				>
 					<input {...getInputProps()} />
 					<div className="flex flex-col items-center gap-4">
 						{isDragActive ? (
-							<Upload className="h-12 w-12 text-primary" />
+							<Upload className="h-12 w-12 text-blue-500" />
 						) : (
-							<ImageIcon className="h-12 w-12 text-muted-foreground" />
+							<ImageIcon className="h-12 w-12 text-gray-400" />
 						)}
 						<div className="space-y-2">
 							<p className="text-lg font-medium">
 								{isDragActive ? 'Drop your image here' : 'Drop an image file here'}
 							</p>
-							<p className="text-sm text-muted-foreground">
+							<p className="text-sm text-gray-500">
 								Supports PNG, JPEG, and TIFF formats
 							</p>
 						</div>

@@ -44,7 +44,7 @@ function ColorList({
 					<div className="space-y-3">
 						<div className="flex items-center justify-between">
 							<label className="text-sm font-medium">Blur Amount</label>
-							<span className="text-sm text-muted-foreground">{blurAmount}</span>
+							<span className="text-sm text-gray-500">{blurAmount}</span>
 						</div>
 						<Slider
 							value={[blurAmount]}
