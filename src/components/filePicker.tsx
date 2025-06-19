@@ -1,22 +1,22 @@
 import React, { useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { connect } from 'react-redux'
+import { useSelector, useDispatch } from 'react-redux'
 import { Upload, Image as ImageIcon } from 'lucide-react'
 import { Button } from './ui/button'
 import { Card, CardContent } from './ui/card'
 import Tritonizer from './tritonizer/index.tsx'
+import { addFile } from '../store/fileSlice'
+import { RootState } from '../store/index'
 
-interface FilePickerProps {
-	file?: File
-	addNewFile: (file: File) => void
-}
+function FilePicker() {
+	const dispatch = useDispatch()
+	const file = useSelector((state: RootState) => state.file.file)
 
-function FilePicker({ file, addNewFile }: FilePickerProps) {
 	const onDrop = useCallback((acceptedFiles: File[]) => {
 		if (acceptedFiles[0]) {
-			addNewFile(acceptedFiles[0])
+			dispatch(addFile(acceptedFiles[0]))
 		}
-	}, [addNewFile])
+	}, [dispatch])
 
 	const onDropRejected = useCallback(() => {
 		console.error('Please drop a valid image file.')
@@ -75,13 +75,4 @@ function FilePicker({ file, addNewFile }: FilePickerProps) {
 	)
 }
 
-export default connect(
-	(state: any) => ({
-		file: state.FileReducer.file
-	}),
-	(dispatch: any) => ({
-		addNewFile: (file: File) => {
-			dispatch({ type: 'FILE/ADD', file })
-		}
-	})
-)(FilePicker)
+export default FilePicker

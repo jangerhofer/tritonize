@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { connect } from 'react-redux'
+import { useDispatch } from 'react-redux'
 import { SketchPicker } from 'react-color'
 import chroma from 'chroma-js'
 import { X, Plus } from 'lucide-react'
@@ -10,30 +10,40 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "../ui/popover"
+import { addColor, removeColor, changeColor } from '../../store/colorSlice'
 
 interface ColorCellProps {
 	color: string
 	index?: number
 	isNew?: boolean
 	children?: React.ReactNode
-	handleDeleteColor?: () => void
-	handleAddColor?: (color: number[]) => void
-	handleColorChange?: (color: any) => void
 }
 
 function ColorCell({ 
 	color, 
+	index,
 	isNew = false, 
-	children,
-	handleDeleteColor,
-	handleAddColor,
-	handleColorChange 
+	children
 }: ColorCellProps) {
 	const [isOpen, setIsOpen] = useState(false)
+	const dispatch = useDispatch()
 
 	const handleClick = () => {
-		if (isNew && handleAddColor) {
-			handleAddColor(chroma('white').rgb())
+		if (isNew) {
+			dispatch(addColor(chroma('white').rgb()))
+		}
+	}
+
+	const handleDeleteColor = () => {
+		dispatch(removeColor(chroma(color).rgb()))
+	}
+
+	const handleColorChange = (color: any) => {
+		if (index !== undefined) {
+			dispatch(changeColor({ 
+				index, 
+				color: [color.rgb.r, color.rgb.g, color.rgb.b] 
+			}))
 		}
 	}
 
@@ -82,19 +92,4 @@ function ColorCell({
 	)
 }
 
-export default connect(
-	null, 
-	(dispatch: any, ownProps: ColorCellProps) => ({
-		handleDeleteColor: () => {
-			dispatch({ type: 'COLOR/REMOVE', color: chroma(ownProps.color).rgb() })
-		},
-		handleAddColor: (color: number[]) => dispatch({ type: 'COLOR/ADD', color }),
-		handleColorChange: (color: any) => {
-			dispatch({ 
-				type: 'COLOR/CHANGE', 
-				index: ownProps.index, 
-				color: [color.rgb.r, color.rgb.g, color.rgb.b] 
-			})
-		}
-	})
-)(ColorCell)
+export default ColorCell

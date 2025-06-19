@@ -12,8 +12,8 @@ export interface FileState {
 }
 
 export interface RootState {
-  ColorReducer: ColorState
-  FileReducer: FileState
+  color: ColorState
+  file: FileState
 }
 
 // Action types

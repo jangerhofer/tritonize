@@ -2,12 +2,7 @@ import React from 'react'
 import FilePicker from './components/filePicker.tsx'
 import Menu from './components/menu.tsx'
 import {Provider} from 'react-redux'
-import {createStore} from 'redux'
-import {composeWithDevTools} from 'redux-devtools-extension'
-import rootReducer from './reducers/index'
-
-const enhancer = composeWithDevTools()
-const store = createStore(rootReducer, {}, enhancer)
+import {store} from './store/index'
 
 function App() {
 	return (

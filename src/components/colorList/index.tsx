@@ -1,26 +1,30 @@
 import React from 'react'
-import { connect } from 'react-redux'
+import { useSelector, useDispatch } from 'react-redux'
 import { Trash2, RotateCcw } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Slider } from '../ui/slider'
 import ColorCell from './colorCell.tsx'
+import { resetColors, changeBlurAmount } from '../../store/colorSlice'
+import { clearFile } from '../../store/fileSlice'
+import { RootState } from '../../store/index'
 
-interface ColorListProps {
-	colorList: number[][]
-	blurAmount: number
-	handleClearColors: () => void
-	handleClearFile: () => void
-	handleBlurChange: (value: number) => void
-}
+function ColorList() {
+	const dispatch = useDispatch()
+	const colorList = useSelector((state: RootState) => state.color.colors)
+	const blurAmount = useSelector((state: RootState) => state.color.blurAmount)
 
-function ColorList({ 
-	colorList, 
-	blurAmount, 
-	handleClearColors, 
-	handleClearFile, 
-	handleBlurChange 
-}: ColorListProps) {
+	const handleClearColors = () => {
+		dispatch(resetColors())
+	}
+
+	const handleClearFile = () => {
+		dispatch(clearFile())
+	}
+
+	const handleBlurChange = (value: number) => {
+		dispatch(changeBlurAmount(value))
+	}
 	return (
 		<div className="space-y-4">
 			<Card>
@@ -81,14 +85,4 @@ function ColorList({
 	)
 }
 
-export default connect(
-	(state: any) => ({
-		colorList: state.ColorReducer.colors,
-		blurAmount: state.ColorReducer.blurAmount
-	}),
-	(dispatch: any) => ({
-		handleClearColors: () => dispatch({ type: 'COLOR/RESET_LIST' }),
-		handleClearFile: () => dispatch({ type: 'FILE/CLEAR' }),
-		handleBlurChange: (blurAmount: number) => dispatch({ type: 'COLOR/BLUR_CHANGE', blurAmount })
-	})
-)(ColorList)
+export default ColorList
