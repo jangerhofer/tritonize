@@ -71,7 +71,7 @@ export default function Canvas({
 	}, [render_webgl, image_el])
 
 	return (
-		<li className="list-none m-2.5 inline-block border border-gray-300 p-1.5 align-top">
+		<li className="list-none m-2.5 inline-block p-1.5 align-top">
 			<canvas
 				ref={canvas_ref}
 				className="max-w-[300px] max-h-[300px] block"
