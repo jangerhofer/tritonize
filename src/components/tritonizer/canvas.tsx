@@ -1,4 +1,4 @@
-import React, { Component } from 'react'
+import React, { Component, createRef } from 'react'
 import _ from 'lodash'
 
 import StackBlur, { mul_table, shg_table, BlurStack } from 'stackblur-canvas'
@@ -34,10 +34,10 @@ const imageManipulator = operative({
 	blurImage: StackBlur.imageDataRGBA,
 	sigmoid,
 	tritonize,
-	run(jobData, cb) {
+	run: function (jobData, cb) {
 		cb(this.tritonize(jobData.imageData, jobData.colorList), jobData)
 	},
-	update(imageData, newColor, oldColor, cb) {
+	update: function (imageData, newColor, oldColor, cb) {
 		for (let i = 0; i < imageData.length; i += 4) {
 			if (
 				imageData[i] === oldColor[0][0] &&
@@ -73,6 +73,7 @@ const styles = {
 export default class Canvas extends Component {
 	constructor(props) {
 		super(props)
+		this.canvasRef = createRef()
 
 		const img = new Image()
 		img.src = this.props.image.preview
@@ -84,7 +85,7 @@ export default class Canvas extends Component {
 
 	handleImageLoaded(evt) {
 		const img = this.state.imageEl
-		const canvas = this.refs.canvas
+		const canvas = this.canvasRef.current
 		const ctx = canvas.getContext('2d')
 		canvas.width = img.width
 		canvas.height = img.height
@@ -135,7 +136,7 @@ export default class Canvas extends Component {
 				_.isEqual
 			)
 			if (oldColor.length === 1 && newColor.length === 1) {
-				const canvas = this.refs.canvas
+				const canvas = this.canvasRef.current
 				const ctx = canvas.getContext('2d')
 				const quadrant = ctx.getImageData(
 					0,
@@ -164,7 +165,7 @@ export default class Canvas extends Component {
 	render() {
 		return (
 			<li>
-				<canvas ref={'canvas'} style={styles.canvas} />
+				<canvas ref={this.canvasRef} style={styles.canvas} />
 			</li>
 		)
 	}
