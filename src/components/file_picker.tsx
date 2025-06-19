@@ -41,40 +41,38 @@ function FilePicker() {
 	}
 
 	return (
-		<Card className="w-full max-w-2xl mx-auto">
+		<Card
+			{...getRootProps()}
+			className={`
+				w-full max-w-2xl mx-auto cursor-pointer transition-colors
+				${
+					isDragActive
+						? 'border-blue-500 bg-blue-50'
+						: 'hover:border-blue-400 hover:bg-gray-50'
+				}
+			`}
+		>
 			<CardContent className="p-8">
-				<div
-					{...getRootProps()}
-					className={`
-						border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors
-						${
-							isDragActive
-								? 'border-blue-500 bg-blue-50'
-								: 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
-						}
-					`}
-				>
-					<input {...getInputProps()} />
-					<div className="flex flex-col items-center gap-4">
-						{isDragActive ? (
-							<Upload className="h-12 w-12 text-blue-500" />
-						) : (
-							<ImageIcon className="h-12 w-12 text-gray-400" />
-						)}
-						<div className="space-y-2">
-							<p className="text-lg font-medium">
-								{isDragActive
-									? 'Drop your image here'
-									: 'Drop an image file here'}
-							</p>
-							<p className="text-sm text-gray-500">
-								Supports PNG, JPEG, and TIFF formats
-							</p>
-						</div>
-						<Button variant="outline" type="button">
-							Choose File
-						</Button>
+				<input {...getInputProps()} />
+				<div className="flex flex-col items-center gap-4 text-center">
+					{isDragActive ? (
+						<Upload className="h-12 w-12 text-blue-500" />
+					) : (
+						<ImageIcon className="h-12 w-12 text-gray-400" />
+					)}
+					<div className="space-y-2">
+						<p className="text-lg font-medium">
+							{isDragActive
+								? 'Drop your image here'
+								: 'Drop an image file here'}
+						</p>
+						<p className="text-sm text-gray-500">
+							Supports PNG, JPEG, and TIFF formats
+						</p>
 					</div>
+					<Button variant="outline" type="button">
+						Choose File
+					</Button>
 				</div>
 			</CardContent>
 		</Card>
