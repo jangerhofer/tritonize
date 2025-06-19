@@ -12,20 +12,40 @@ interface CanvasState {
 	imageEl: HTMLImageElement
 }
 
+// Shared WebGL tritonizer instance
+let sharedTritonizer: WebGLTritonizer | null = null
+
 class WebGLTritonizer {
+	private gl: WebGLRenderingContext | null = null
+	private program: WebGLProgram | null = null
+	private blurProgram: WebGLProgram | null = null
+	private positionBuffer: WebGLBuffer | null = null
+
 	constructor() {
-		this.gl = null
-		this.program = null
-		this.blurProgram = null
-		this.framebuffer = null
-		this.texture = null
-		this.blurTexture = null
+		// Only create shaders once
+		if (sharedTritonizer) {
+			return sharedTritonizer
+		}
+		sharedTritonizer = this
 	}
 
-	initGL(canvas) {
+	static getInstance(): WebGLTritonizer {
+		if (!sharedTritonizer) {
+			sharedTritonizer = new WebGLTritonizer()
+		}
+		return sharedTritonizer
+	}
+
+	initShaders() {
+		if (this.program && this.blurProgram) {
+			return // Already initialized
+		}
+
+		// Create a temporary canvas to get WebGL context for shader compilation
+		const tempCanvas = document.createElement('canvas')
 		this.gl =
-			canvas.getContext('webgl') ||
-			canvas.getContext('experimental-webgl')
+			tempCanvas.getContext('webgl') ||
+			tempCanvas.getContext('experimental-webgl')
 		if (!this.gl) {
 			throw new Error('WebGL not supported')
 		}
@@ -171,91 +191,86 @@ class WebGLTritonizer {
 		this.gl.bufferData(this.gl.ARRAY_BUFFER, positions, this.gl.STATIC_DRAW)
 	}
 
-	createTexture(image) {
-		const texture = this.gl.createTexture()
-		this.gl.bindTexture(this.gl.TEXTURE_2D, texture)
-		this.gl.texImage2D(
-			this.gl.TEXTURE_2D,
+	createTextureForCanvas(gl: WebGLRenderingContext, image: HTMLImageElement) {
+		const texture = gl.createTexture()
+		gl.bindTexture(gl.TEXTURE_2D, texture)
+		gl.texImage2D(
+			gl.TEXTURE_2D,
 			0,
-			this.gl.RGBA,
-			this.gl.RGBA,
-			this.gl.UNSIGNED_BYTE,
+			gl.RGBA,
+			gl.RGBA,
+			gl.UNSIGNED_BYTE,
 			image
 		)
-		this.gl.texParameteri(
-			this.gl.TEXTURE_2D,
-			this.gl.TEXTURE_WRAP_S,
-			this.gl.CLAMP_TO_EDGE
-		)
-		this.gl.texParameteri(
-			this.gl.TEXTURE_2D,
-			this.gl.TEXTURE_WRAP_T,
-			this.gl.CLAMP_TO_EDGE
-		)
-		this.gl.texParameteri(
-			this.gl.TEXTURE_2D,
-			this.gl.TEXTURE_MIN_FILTER,
-			this.gl.LINEAR
-		)
-		this.gl.texParameteri(
-			this.gl.TEXTURE_2D,
-			this.gl.TEXTURE_MAG_FILTER,
-			this.gl.LINEAR
-		)
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 		return texture
 	}
 
-	setupFramebuffer(width, height) {
-		this.framebuffer = this.gl.createFramebuffer()
-		this.blurTexture = this.gl.createTexture()
+	setupFramebufferForCanvas(
+		gl: WebGLRenderingContext,
+		width: number,
+		height: number
+	) {
+		const framebuffer = gl.createFramebuffer()
+		const blurTexture = gl.createTexture()
 
-		this.gl.bindTexture(this.gl.TEXTURE_2D, this.blurTexture)
-		this.gl.texImage2D(
-			this.gl.TEXTURE_2D,
+		gl.bindTexture(gl.TEXTURE_2D, blurTexture)
+		gl.texImage2D(
+			gl.TEXTURE_2D,
 			0,
-			this.gl.RGBA,
+			gl.RGBA,
 			width,
 			height,
 			0,
-			this.gl.RGBA,
-			this.gl.UNSIGNED_BYTE,
+			gl.RGBA,
+			gl.UNSIGNED_BYTE,
 			null
 		)
-		this.gl.texParameteri(
-			this.gl.TEXTURE_2D,
-			this.gl.TEXTURE_WRAP_S,
-			this.gl.CLAMP_TO_EDGE
-		)
-		this.gl.texParameteri(
-			this.gl.TEXTURE_2D,
-			this.gl.TEXTURE_WRAP_T,
-			this.gl.CLAMP_TO_EDGE
-		)
-		this.gl.texParameteri(
-			this.gl.TEXTURE_2D,
-			this.gl.TEXTURE_MIN_FILTER,
-			this.gl.LINEAR
-		)
-		this.gl.texParameteri(
-			this.gl.TEXTURE_2D,
-			this.gl.TEXTURE_MAG_FILTER,
-			this.gl.LINEAR
-		)
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 
-		this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffer)
-		this.gl.framebufferTexture2D(
-			this.gl.FRAMEBUFFER,
-			this.gl.COLOR_ATTACHMENT0,
-			this.gl.TEXTURE_2D,
-			this.blurTexture,
+		gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer)
+		gl.framebufferTexture2D(
+			gl.FRAMEBUFFER,
+			gl.COLOR_ATTACHMENT0,
+			gl.TEXTURE_2D,
+			blurTexture,
 			0
 		)
+
+		return { framebuffer, blurTexture }
 	}
 
-	render(image, colorList, blurAmount = 0) {
-		if (!this.gl) {
-			console.error('WebGL context not initialized')
-			return
+	setupVertexAttributes(gl: WebGLRenderingContext, program: WebGLProgram) {
+		const positionLoc = gl.getAttribLocation(program, 'a_position')
+		const texCoordLoc = gl.getAttribLocation(program, 'a_texCoord')
+
+		gl.enableVertexAttribArray(positionLoc)
+		gl.enableVertexAttribArray(texCoordLoc)
+		gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 16, 0)
+		gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 16, 8)
+	}
+
+	render(
+		canvas: HTMLCanvasElement,
+		image: HTMLImageElement,
+		colorList: [number, number, number][],
+		blurAmount = 0
+	) {
+		// Initialize shaders once
+		this.initShaders()
+
+		// Get WebGL context for this specific canvas
+		const gl =
+			canvas.getContext('webgl') ||
+			canvas.getContext('experimental-webgl')
+		if (!gl) {
+			throw new Error('WebGL not supported on this canvas')
 		}
 
 		const width = image.width || image.videoWidth
@@ -270,94 +285,57 @@ class WebGLTritonizer {
 			colorList.length
 		)
 
-		this.gl.viewport(0, 0, width, height)
+		gl.viewport(0, 0, width, height)
 
-		// Create texture from image
-		this.texture = this.createTexture(image)
-
-		let sourceTexture = this.texture
+		// Create texture from image for this canvas
+		const texture = this.createTextureForCanvas(gl, image)
+		let sourceTexture = texture
 
 		// Apply blur if needed
+		let framebuffer = null
+		let blurTexture = null
 		if (blurAmount > 0) {
-			this.setupFramebuffer(width, height)
-
-			// Render blur to framebuffer
-			this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffer)
-			this.gl.useProgram(this.blurProgram)
-
-			const blurPositionLoc = this.gl.getAttribLocation(
-				this.blurProgram,
-				'a_position'
-			)
-			const blurTexCoordLoc = this.gl.getAttribLocation(
-				this.blurProgram,
-				'a_texCoord'
-			)
-
-			this.gl.enableVertexAttribArray(blurPositionLoc)
-			this.gl.enableVertexAttribArray(blurTexCoordLoc)
-			this.gl.vertexAttribPointer(
-				blurPositionLoc,
-				2,
-				this.gl.FLOAT,
-				false,
-				16,
-				0
-			)
-			this.gl.vertexAttribPointer(
-				blurTexCoordLoc,
-				2,
-				this.gl.FLOAT,
-				false,
-				16,
-				8
-			)
-
-			this.gl.uniform1i(
-				this.gl.getUniformLocation(this.blurProgram, 'u_image'),
-				0
-			)
-			this.gl.uniform2f(
-				this.gl.getUniformLocation(this.blurProgram, 'u_resolution'),
+			const blurResources = this.setupFramebufferForCanvas(
+				gl,
 				width,
 				height
 			)
-			this.gl.uniform1f(
-				this.gl.getUniformLocation(this.blurProgram, 'u_blurAmount'),
+			framebuffer = blurResources.framebuffer
+			blurTexture = blurResources.blurTexture
+
+			// Render blur to framebuffer
+			gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer)
+			gl.useProgram(this.blurProgram)
+
+			this.setupVertexAttributes(gl, this.blurProgram)
+
+			gl.uniform1i(gl.getUniformLocation(this.blurProgram, 'u_image'), 0)
+			gl.uniform2f(
+				gl.getUniformLocation(this.blurProgram, 'u_resolution'),
+				width,
+				height
+			)
+			gl.uniform1f(
+				gl.getUniformLocation(this.blurProgram, 'u_blurAmount'),
 				blurAmount
 			)
 
-			this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture)
-			this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4)
+			gl.bindTexture(gl.TEXTURE_2D, texture)
+			gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
-			sourceTexture = this.blurTexture
+			sourceTexture = blurTexture
 		}
 
 		// Render tritonize effect to canvas
-		this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null)
-		this.gl.useProgram(this.program)
+		gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+		gl.useProgram(this.program)
 
-		const positionLoc = this.gl.getAttribLocation(
-			this.program,
-			'a_position'
-		)
-		const texCoordLoc = this.gl.getAttribLocation(
-			this.program,
-			'a_texCoord'
-		)
-
-		this.gl.enableVertexAttribArray(positionLoc)
-		this.gl.enableVertexAttribArray(texCoordLoc)
-		this.gl.vertexAttribPointer(positionLoc, 2, this.gl.FLOAT, false, 16, 0)
-		this.gl.vertexAttribPointer(texCoordLoc, 2, this.gl.FLOAT, false, 16, 8)
+		this.setupVertexAttributes(gl, this.program)
 
 		// Set uniforms
-		this.gl.uniform1i(
-			this.gl.getUniformLocation(this.program, 'u_image'),
-			0
-		)
-		this.gl.uniform1i(
-			this.gl.getUniformLocation(this.program, 'u_colorCount'),
+		gl.uniform1i(gl.getUniformLocation(this.program, 'u_image'), 0)
+		gl.uniform1i(
+			gl.getUniformLocation(this.program, 'u_colorCount'),
 			colorList.length
 		)
 
@@ -368,23 +346,23 @@ class WebGLTritonizer {
 			colorArray[i * 3 + 1] = colorList[i][1] / 255
 			colorArray[i * 3 + 2] = colorList[i][2] / 255
 		}
-		this.gl.uniform3fv(
-			this.gl.getUniformLocation(this.program, 'u_colors'),
+		gl.uniform3fv(
+			gl.getUniformLocation(this.program, 'u_colors'),
 			colorArray
 		)
 
-		this.gl.bindTexture(this.gl.TEXTURE_2D, sourceTexture)
-		this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4)
+		gl.bindTexture(gl.TEXTURE_2D, sourceTexture)
+		gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+
+		// Clean up canvas-specific resources
+		gl.deleteTexture(texture)
+		if (framebuffer) gl.deleteFramebuffer(framebuffer)
+		if (blurTexture) gl.deleteTexture(blurTexture)
 	}
 
 	cleanup() {
-		if (this.gl) {
-			if (this.texture) this.gl.deleteTexture(this.texture)
-			if (this.blurTexture) this.gl.deleteTexture(this.blurTexture)
-			if (this.framebuffer) this.gl.deleteFramebuffer(this.framebuffer)
-			if (this.program) this.gl.deleteProgram(this.program)
-			if (this.blurProgram) this.gl.deleteProgram(this.blurProgram)
-		}
+		// Shared resources are cleaned up when the page unloads
+		// Individual canvas resources are cleaned up after each render
 	}
 }
 
@@ -406,7 +384,6 @@ const styles = {
 
 export default class Canvas extends Component<CanvasProps, CanvasState> {
 	private canvasRef = createRef<HTMLCanvasElement>()
-	private webglTritonizer = new WebGLTritonizer()
 	private imageUrl: string
 
 	constructor(props: CanvasProps) {
@@ -432,9 +409,6 @@ export default class Canvas extends Component<CanvasProps, CanvasState> {
 	}
 
 	componentWillUnmount() {
-		if (this.webglTritonizer) {
-			this.webglTritonizer.cleanup()
-		}
 		// Clean up the object URL to prevent memory leaks
 		if (this.imageUrl) {
 			URL.revokeObjectURL(this.imageUrl)
@@ -459,19 +433,20 @@ export default class Canvas extends Component<CanvasProps, CanvasState> {
 		canvas.height = img.height
 
 		try {
-			this.webglTritonizer.initGL(canvas)
-			console.log('WebGL initialized successfully')
 			this.renderWebGL()
 		} catch (error) {
-			console.error('WebGL initialization failed:', error)
+			console.error('WebGL render failed:', error)
 		}
 	}
 
 	renderWebGL() {
-		if (this.webglTritonizer && this.state.imageEl) {
+		const canvas = this.canvasRef.current
+		if (canvas && this.state.imageEl) {
 			console.log('Rendering with colors:', this.props.colorList)
 			try {
-				this.webglTritonizer.render(
+				const tritonizer = WebGLTritonizer.getInstance()
+				tritonizer.render(
+					canvas,
 					this.state.imageEl,
 					this.props.colorList,
 					this.props.blurAmount || 0
