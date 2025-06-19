@@ -1,24 +1,24 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 
 interface FileState {
-  file: File | null
+	file: File | null
 }
 
 const initialState: FileState = {
-  file: null
+	file: null,
 }
 
 const fileSlice = createSlice({
-  name: 'file',
-  initialState,
-  reducers: {
-    addFile: (state, action: PayloadAction<File>) => {
-      state.file = action.payload
-    },
-    clearFile: (state) => {
-      state.file = null
-    }
-  }
+	name: 'file',
+	initialState,
+	reducers: {
+		addFile: (state, action: PayloadAction<File>) => {
+			state.file = action.payload
+		},
+		clearFile: (state) => {
+			state.file = null
+		},
+	},
 })
 
 export const { addFile, clearFile } = fileSlice.actions

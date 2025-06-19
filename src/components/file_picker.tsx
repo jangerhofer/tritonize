@@ -12,11 +12,14 @@ function FilePicker() {
 	const dispatch = useDispatch()
 	const file = useSelector((state: RootState) => state.file.file)
 
-	const on_drop = useCallback((accepted_files: File[]) => {
-		if (accepted_files[0]) {
-			dispatch(addFile(accepted_files[0]))
-		}
-	}, [dispatch])
+	const on_drop = useCallback(
+		(accepted_files: File[]) => {
+			if (accepted_files[0]) {
+				dispatch(addFile(accepted_files[0]))
+			}
+		},
+		[dispatch]
+	)
 
 	const on_drop_rejected = useCallback(() => {
 		console.error('Please drop a valid image file.')
@@ -28,9 +31,9 @@ function FilePicker() {
 		accept: {
 			'image/png': ['.png'],
 			'image/jpeg': ['.jpg', '.jpeg'],
-			'image/tiff': ['.tiff', '.tif']
+			'image/tiff': ['.tiff', '.tif'],
 		},
-		multiple: false
+		multiple: false,
 	})
 
 	if (file) {
@@ -44,9 +47,10 @@ function FilePicker() {
 					{...getRootProps()}
 					className={`
 						border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors
-						${isDragActive 
-							? 'border-blue-500 bg-blue-50' 
-							: 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
+						${
+							isDragActive
+								? 'border-blue-500 bg-blue-50'
+								: 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
 						}
 					`}
 				>
@@ -59,7 +63,9 @@ function FilePicker() {
 						)}
 						<div className="space-y-2">
 							<p className="text-lg font-medium">
-								{isDragActive ? 'Drop your image here' : 'Drop an image file here'}
+								{isDragActive
+									? 'Drop your image here'
+									: 'Drop an image file here'}
 							</p>
 							<p className="text-sm text-gray-500">
 								Supports PNG, JPEG, and TIFF formats

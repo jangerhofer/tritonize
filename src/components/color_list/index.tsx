@@ -11,8 +11,12 @@ import { RootState } from '../../store/index'
 
 function ColorList() {
 	const dispatch = useDispatch()
-	const color_list_data = useSelector((state: RootState) => state.color.colors)
-	const blur_amount = useSelector((state: RootState) => state.color.blurAmount)
+	const color_list_data = useSelector(
+		(state: RootState) => state.color.colors
+	)
+	const blur_amount = useSelector(
+		(state: RootState) => state.color.blurAmount
+	)
 
 	const handle_clear_colors = () => {
 		dispatch(resetColors())
@@ -34,9 +38,9 @@ function ColorList() {
 				<CardContent className="space-y-4">
 					<div className="grid gap-3">
 						{color_list_data.map((color, i) => (
-							<ColorCell 
-								key={i} 
-								index={i} 
+							<ColorCell
+								key={i}
+								index={i}
 								color={`rgb(${color[0]},${color[1]},${color[2]})`}
 							/>
 						))}
@@ -44,15 +48,21 @@ function ColorList() {
 							+
 						</ColorCell>
 					</div>
-					
+
 					<div className="space-y-3">
 						<div className="flex items-center justify-between">
-							<label className="text-sm font-medium">Blur Amount</label>
-							<span className="text-sm text-gray-500">{blur_amount}</span>
+							<label className="text-sm font-medium">
+								Blur Amount
+							</label>
+							<span className="text-sm text-gray-500">
+								{blur_amount}
+							</span>
 						</div>
 						<Slider
 							value={[blur_amount]}
-							onValueChange={(values) => handle_blur_change(values[0])}
+							onValueChange={(values) =>
+								handle_blur_change(values[0])
+							}
 							min={0}
 							max={5}
 							step={0.1}
@@ -62,18 +72,18 @@ function ColorList() {
 					</div>
 				</CardContent>
 			</Card>
-			
+
 			<div className="flex gap-2">
-				<Button 
-					variant="outline" 
+				<Button
+					variant="outline"
 					onClick={handle_clear_colors}
 					className="flex-1"
 				>
 					<Trash2 className="w-4 h-4 mr-2" />
 					Clear Colors
 				</Button>
-				<Button 
-					variant="outline" 
+				<Button
+					variant="outline"
 					onClick={handle_clear_file}
 					className="flex-1"
 				>
