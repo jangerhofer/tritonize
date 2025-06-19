@@ -1,6 +1,6 @@
 import { configureStore } from '@reduxjs/toolkit'
-import colorReducer from './colorSlice'
-import fileReducer from './fileSlice'
+import colorReducer from './color_slice'
+import fileReducer from './file_slice'
 
 export const store = configureStore({
   reducer: {

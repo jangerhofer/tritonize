@@ -5,26 +5,26 @@ import { Upload, Image as ImageIcon } from 'lucide-react'
 import { Button } from './ui/button'
 import { Card, CardContent } from './ui/card'
 import Tritonizer from './tritonizer/index.tsx'
-import { addFile } from '../store/fileSlice'
+import { addFile } from '../store/file_slice'
 import { RootState } from '../store/index'
 
 function FilePicker() {
 	const dispatch = useDispatch()
 	const file = useSelector((state: RootState) => state.file.file)
 
-	const onDrop = useCallback((acceptedFiles: File[]) => {
-		if (acceptedFiles[0]) {
-			dispatch(addFile(acceptedFiles[0]))
+	const on_drop = useCallback((accepted_files: File[]) => {
+		if (accepted_files[0]) {
+			dispatch(addFile(accepted_files[0]))
 		}
 	}, [dispatch])
 
-	const onDropRejected = useCallback(() => {
+	const on_drop_rejected = useCallback(() => {
 		console.error('Please drop a valid image file.')
 	}, [])
 
 	const { getRootProps, getInputProps, isDragActive } = useDropzone({
-		onDrop,
-		onDropRejected,
+		onDrop: on_drop,
+		onDropRejected: on_drop_rejected,
 		accept: {
 			'image/png': ['.png'],
 			'image/jpeg': ['.jpg', '.jpeg'],

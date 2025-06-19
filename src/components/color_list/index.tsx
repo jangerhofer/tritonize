@@ -4,25 +4,25 @@ import { Trash2, RotateCcw } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Slider } from '../ui/slider'
-import ColorCell from './colorCell.tsx'
-import { resetColors, changeBlurAmount } from '../../store/colorSlice'
-import { clearFile } from '../../store/fileSlice'
+import ColorCell from './color_cell.tsx'
+import { resetColors, changeBlurAmount } from '../../store/color_slice'
+import { clearFile } from '../../store/file_slice'
 import { RootState } from '../../store/index'
 
 function ColorList() {
 	const dispatch = useDispatch()
-	const colorList = useSelector((state: RootState) => state.color.colors)
-	const blurAmount = useSelector((state: RootState) => state.color.blurAmount)
+	const color_list_data = useSelector((state: RootState) => state.color.colors)
+	const blur_amount = useSelector((state: RootState) => state.color.blurAmount)
 
-	const handleClearColors = () => {
+	const handle_clear_colors = () => {
 		dispatch(resetColors())
 	}
 
-	const handleClearFile = () => {
+	const handle_clear_file = () => {
 		dispatch(clearFile())
 	}
 
-	const handleBlurChange = (value: number) => {
+	const handle_blur_change = (value: number) => {
 		dispatch(changeBlurAmount(value))
 	}
 	return (
@@ -33,14 +33,14 @@ function ColorList() {
 				</CardHeader>
 				<CardContent className="space-y-4">
 					<div className="grid gap-3">
-						{colorList.map((color, i) => (
+						{color_list_data.map((color, i) => (
 							<ColorCell 
 								key={i} 
 								index={i} 
 								color={`rgb(${color[0]},${color[1]},${color[2]})`}
 							/>
 						))}
-						<ColorCell isNew color="rgb(255,255,255)">
+						<ColorCell is_new color="rgb(255,255,255)">
 							+
 						</ColorCell>
 					</div>
@@ -48,11 +48,11 @@ function ColorList() {
 					<div className="space-y-3">
 						<div className="flex items-center justify-between">
 							<label className="text-sm font-medium">Blur Amount</label>
-							<span className="text-sm text-gray-500">{blurAmount}</span>
+							<span className="text-sm text-gray-500">{blur_amount}</span>
 						</div>
 						<Slider
-							value={[blurAmount]}
-							onValueChange={(values) => handleBlurChange(values[0])}
+							value={[blur_amount]}
+							onValueChange={(values) => handle_blur_change(values[0])}
 							min={0}
 							max={5}
 							step={0.1}
@@ -66,7 +66,7 @@ function ColorList() {
 			<div className="flex gap-2">
 				<Button 
 					variant="outline" 
-					onClick={handleClearColors}
+					onClick={handle_clear_colors}
 					className="flex-1"
 				>
 					<Trash2 className="w-4 h-4 mr-2" />
@@ -74,7 +74,7 @@ function ColorList() {
 				</Button>
 				<Button 
 					variant="outline" 
-					onClick={handleClearFile}
+					onClick={handle_clear_file}
 					className="flex-1"
 				>
 					<RotateCcw className="w-4 h-4 mr-2" />

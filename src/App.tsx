@@ -1,8 +1,8 @@
 import React from 'react'
-import FilePicker from './components/filePicker.tsx'
+import FilePicker from './components/file_picker.tsx'
 import Menu from './components/menu.tsx'
-import {Provider} from 'react-redux'
-import {store} from './store/index'
+import { Provider } from 'react-redux'
+import { store } from './store/index'
 
 function App() {
 	return (
