@@ -1,4 +1,5 @@
 import { useSelector } from 'react-redux'
+import { useState, useEffect, useRef } from 'react'
 
 import Canvas from './canvas.tsx'
 import { RootState } from '../../store/index'
@@ -51,6 +52,10 @@ function Tritonizer() {
 	const blur_amount = useSelector(
 		(state: RootState) => state.color.blur_amount
 	)
+	const [visible_indices, set_visible_indices] = useState<Set<number>>(
+		new Set()
+	)
+	const ul_ref = useRef<HTMLUListElement>(null)
 
 	if (color_list.length <= 1) {
 		return (
@@ -64,21 +69,47 @@ function Tritonizer() {
 	const color_perms = generate_all_partial_permutations(color_list).filter(
 		(list) => list.length > 1
 	)
-	const canvas_array = []
-	let id_no = 0
-	while (id_no < color_perms.length) {
-		canvas_array.push(
-			<Canvas
-				key={id_no}
-				image={image}
-				id={id_no}
-				color_list={color_perms[id_no]}
-				blur_amount={blur_amount}
-			/>
+
+	useEffect(() => {
+		const ul = ul_ref.current
+		if (!ul) return
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				entries.forEach((entry) => {
+					const li = entry.target as HTMLLIElement
+					const index = parseInt(li.dataset.index || '0')
+					set_visible_indices((prev) => {
+						const newSet = new Set(prev)
+						if (entry.isIntersecting) {
+							newSet.add(index)
+						} else {
+							newSet.delete(index)
+						}
+						return newSet
+					})
+				})
+			},
+			{ rootMargin: '100px' }
 		)
-		id_no++
-	}
-	return <ul>{canvas_array}</ul>
+
+		const listItems = ul.querySelectorAll('li')
+		listItems.forEach((li) => observer.observe(li))
+
+		return () => observer.disconnect()
+	}, [color_perms.length])
+
+	const canvas_array = color_perms.map((color_perm, id_no) => (
+		<Canvas
+			key={id_no}
+			image={image}
+			id={id_no}
+			color_list={color_perm}
+			blur_amount={blur_amount}
+			is_visible={visible_indices.has(id_no)}
+		/>
+	))
+	return <ul ref={ul_ref}>{canvas_array}</ul>
 }
 
 export default Tritonizer

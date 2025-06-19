@@ -6,72 +6,96 @@ interface CanvasProps {
 	color_list: [number, number, number][]
 	blur_amount?: number
 	id: string | number
+	is_visible?: boolean
 }
 
 export default function Canvas({
 	image,
 	color_list,
 	blur_amount = 0,
+	is_visible = false,
+	id,
 }: CanvasProps) {
 	const canvas_ref = useRef<HTMLCanvasElement>(null)
 	const [image_el, set_image_el] = useState<HTMLImageElement | null>(null)
+	const [has_rendered, set_has_rendered] = useState(false)
 
 	const render_webgl = useCallback(() => {
+		if (has_rendered || !is_visible) return
+
 		const canvas = canvas_ref.current
-		if (canvas && image_el && color_list && color_list.length > 0) {
+		if (
+			canvas &&
+			image_el &&
+			image_el.complete &&
+			image_el.naturalWidth > 0 &&
+			image_el.naturalHeight > 0 &&
+			color_list &&
+			color_list.length > 0
+		) {
 			try {
 				const tritonizer = WebGLTritonizer.get_instance()
 				tritonizer.render(canvas, image_el, color_list, blur_amount)
+				set_has_rendered(true)
 			} catch (error) {
 				console.error('WebGL render failed:', error)
 			}
 		}
-	}, [image_el, color_list, blur_amount])
+	}, [image_el, color_list, blur_amount, has_rendered, is_visible])
 
-	const handle_image_loaded = useCallback(() => {
+	const handle_image_loaded = useCallback((img: HTMLImageElement) => {
 		const canvas = canvas_ref.current
-		if (!canvas || !image_el) return
+		if (
+			!canvas ||
+			!img ||
+			!img.complete ||
+			img.naturalWidth <= 0 ||
+			img.naturalHeight <= 0
+		)
+			return
 
-		canvas.width = image_el.width
-		canvas.height = image_el.height
+		canvas.width = img.naturalWidth
+		canvas.height = img.naturalHeight
 
-		try {
-			render_webgl()
-		} catch (error) {
-			console.error('WebGL render failed:', error)
-		}
-	}, [image_el, render_webgl])
+		set_image_el(img)
+	}, [])
 
 	useEffect(() => {
 		if (!image) return
 
+		set_has_rendered(false)
+		set_image_el(null)
+
 		const img = new Image()
-		// Don't set crossOrigin for blob URLs
 		const url = URL.createObjectURL(image)
 
-		img.onload = handle_image_loaded
+		img.onload = () => handle_image_loaded(img)
 		img.onerror = (error) => {
 			console.error('Image failed to load:', error)
 		}
 
 		img.src = url
-		set_image_el(img)
 
 		return () => {
-			if (url) {
-				URL.revokeObjectURL(url)
-			}
+			URL.revokeObjectURL(url)
 		}
 	}, [image, handle_image_loaded])
 
 	useEffect(() => {
-		if (image_el) {
+		set_has_rendered(false)
+	}, [color_list, blur_amount])
+
+	useEffect(() => {
+		if (image_el && is_visible) {
 			render_webgl()
 		}
-	}, [render_webgl, image_el])
+	}, [render_webgl, image_el, is_visible])
 
 	return (
-		<li className="list-none m-2.5 inline-block p-1.5 align-top">
+		<li
+			className="list-none m-2.5 inline-block p-1.5 align-top"
+			data-index={id}
+		>
 			<canvas
 				ref={canvas_ref}
 				className="max-w-[300px] max-h-[300px] block"

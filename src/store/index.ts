@@ -10,7 +10,7 @@ export const store = configureStore({
 	middleware: (getDefaultMiddleware) =>
 		getDefaultMiddleware({
 			serializableCheck: {
-				ignoredActions: ['file/addFile'],
+				ignoredActions: ['file/add_file'],
 				ignoredPaths: ['file.file'],
 			},
 		}),

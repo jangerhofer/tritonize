@@ -310,8 +310,14 @@ export class WebGLTritonizer {
 			gl
 		)
 
-		const width = image.width
-		const height = image.height
+		const width = image.naturalWidth || image.width
+		const height = image.naturalHeight || image.height
+
+		// Validate image dimensions
+		if (width <= 0 || height <= 0) {
+			console.warn('Image has invalid dimensions:', { width, height })
+			return
+		}
 
 		gl.viewport(0, 0, width, height)
 
