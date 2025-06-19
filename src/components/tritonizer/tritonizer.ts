@@ -190,8 +190,25 @@ export class WebGLTritonizer {
 	}
 
 	setup_geometry(gl: WebGLRenderingContext): void {
+		// Format: x, y, u, v (position + texture coordinates)
+		// Flip texture V coordinates to fix 180 degree rotation
 		const positions = new Float32Array([
-			-1, -1, 0, 0, 1, -1, 1, 0, -1, 1, 0, 1, 1, 1, 1, 1,
+			-1,
+			-1,
+			0,
+			1, // bottom-left
+			1,
+			-1,
+			1,
+			1, // bottom-right
+			-1,
+			1,
+			0,
+			0, // top-left
+			1,
+			1,
+			1,
+			0, // top-right
 		])
 
 		const buffer = gl.createBuffer()

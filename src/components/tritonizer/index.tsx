@@ -1,5 +1,5 @@
 import { useSelector } from 'react-redux'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 
 import Canvas from './canvas.tsx'
 import { RootState } from '../../store/index'
@@ -52,10 +52,60 @@ function Tritonizer() {
 	const blur_amount = useSelector(
 		(state: RootState) => state.color.blur_amount
 	)
+
 	const [visible_indices, set_visible_indices] = useState<Set<number>>(
 		new Set()
 	)
 	const ul_ref = useRef<HTMLUListElement>(null)
+
+	const color_perms = useMemo(
+		() =>
+			generate_all_partial_permutations(color_list).filter(
+				(list) => list.length > 1
+			),
+		[color_list]
+	)
+
+	useEffect(() => {
+		const ul = ul_ref.current
+		if (!ul) return
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				const updates = new Set(visible_indices)
+				let hasChanges = false
+
+				entries.forEach((entry) => {
+					const index = parseInt(
+						(entry.target as HTMLElement).dataset.index || '0'
+					)
+					if (entry.isIntersecting && !updates.has(index)) {
+						updates.add(index)
+						hasChanges = true
+					} else if (!entry.isIntersecting && updates.has(index)) {
+						updates.delete(index)
+						hasChanges = true
+					}
+				})
+
+				if (hasChanges) {
+					set_visible_indices(updates)
+				}
+			},
+			{ rootMargin: '50px' }
+		)
+
+		// Use setTimeout to ensure DOM is ready
+		const timer = setTimeout(() => {
+			const listItems = ul.querySelectorAll('li')
+			listItems.forEach((li) => observer.observe(li))
+		}, 0)
+
+		return () => {
+			clearTimeout(timer)
+			observer.disconnect()
+		}
+	}, [color_perms.length])
 
 	if (color_list.length <= 1) {
 		return (
@@ -66,50 +116,24 @@ function Tritonizer() {
 		)
 	}
 
-	const color_perms = generate_all_partial_permutations(color_list).filter(
-		(list) => list.length > 1
+	if (!image) {
+		return null
+	}
+
+	return (
+		<ul ref={ul_ref}>
+			{color_perms.map((color_perm, index) => (
+				<Canvas
+					key={index}
+					image={image}
+					id={index}
+					color_list={color_perm}
+					blur_amount={blur_amount}
+					is_visible={visible_indices.has(index)}
+				/>
+			))}
+		</ul>
 	)
-
-	useEffect(() => {
-		const ul = ul_ref.current
-		if (!ul) return
-
-		const observer = new IntersectionObserver(
-			(entries) => {
-				entries.forEach((entry) => {
-					const li = entry.target as HTMLLIElement
-					const index = parseInt(li.dataset.index || '0')
-					set_visible_indices((prev) => {
-						const newSet = new Set(prev)
-						if (entry.isIntersecting) {
-							newSet.add(index)
-						} else {
-							newSet.delete(index)
-						}
-						return newSet
-					})
-				})
-			},
-			{ rootMargin: '100px' }
-		)
-
-		const listItems = ul.querySelectorAll('li')
-		listItems.forEach((li) => observer.observe(li))
-
-		return () => observer.disconnect()
-	}, [color_perms.length])
-
-	const canvas_array = color_perms.map((color_perm, id_no) => (
-		<Canvas
-			key={id_no}
-			image={image}
-			id={id_no}
-			color_list={color_perm}
-			blur_amount={blur_amount}
-			is_visible={visible_indices.has(id_no)}
-		/>
-	))
-	return <ul ref={ul_ref}>{canvas_array}</ul>
 }
 
 export default Tritonizer

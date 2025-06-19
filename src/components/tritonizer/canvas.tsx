@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect } from 'react'
 import { WebGLTritonizer } from './tritonizer'
 
 interface CanvasProps {
@@ -17,79 +17,38 @@ export default function Canvas({
 	id,
 }: CanvasProps) {
 	const canvas_ref = useRef<HTMLCanvasElement>(null)
-	const [image_el, set_image_el] = useState<HTMLImageElement | null>(null)
-	const [has_rendered, set_has_rendered] = useState(false)
 
-	const render_webgl = useCallback(() => {
-		if (has_rendered || !is_visible) return
+	useEffect(() => {
+		if (
+			!is_visible ||
+			!image ||
+			!canvas_ref.current ||
+			color_list.length === 0
+		)
+			return
 
 		const canvas = canvas_ref.current
-		if (
-			canvas &&
-			image_el &&
-			image_el.complete &&
-			image_el.naturalWidth > 0 &&
-			image_el.naturalHeight > 0 &&
-			color_list &&
-			color_list.length > 0
-		) {
+		const img = new Image()
+		const url = URL.createObjectURL(image)
+
+		img.onload = () => {
+			if (img.naturalWidth <= 0 || img.naturalHeight <= 0) return
+
+			canvas.width = img.naturalWidth
+			canvas.height = img.naturalHeight
+
 			try {
 				const tritonizer = WebGLTritonizer.get_instance()
-				tritonizer.render(canvas, image_el, color_list, blur_amount)
-				set_has_rendered(true)
+				tritonizer.render(canvas, img, color_list, blur_amount)
 			} catch (error) {
 				console.error('WebGL render failed:', error)
 			}
 		}
-	}, [image_el, color_list, blur_amount, has_rendered, is_visible])
-
-	const handle_image_loaded = useCallback((img: HTMLImageElement) => {
-		const canvas = canvas_ref.current
-		if (
-			!canvas ||
-			!img ||
-			!img.complete ||
-			img.naturalWidth <= 0 ||
-			img.naturalHeight <= 0
-		)
-			return
-
-		canvas.width = img.naturalWidth
-		canvas.height = img.naturalHeight
-
-		set_image_el(img)
-	}, [])
-
-	useEffect(() => {
-		if (!image) return
-
-		set_has_rendered(false)
-		set_image_el(null)
-
-		const img = new Image()
-		const url = URL.createObjectURL(image)
-
-		img.onload = () => handle_image_loaded(img)
-		img.onerror = (error) => {
-			console.error('Image failed to load:', error)
-		}
 
 		img.src = url
 
-		return () => {
-			URL.revokeObjectURL(url)
-		}
-	}, [image, handle_image_loaded])
-
-	useEffect(() => {
-		set_has_rendered(false)
-	}, [color_list, blur_amount])
-
-	useEffect(() => {
-		if (image_el && is_visible) {
-			render_webgl()
-		}
-	}, [render_webgl, image_el, is_visible])
+		return () => URL.revokeObjectURL(url)
+	}, [image, color_list, blur_amount, is_visible])
 
 	return (
 		<li
