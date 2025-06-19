@@ -8,22 +8,6 @@ interface CanvasProps {
 	id: string | number
 }
 
-const styles = {
-	canvas: {
-		maxWidth: '300px',
-		maxHeight: '300px',
-		display: 'block',
-	},
-	list_item: {
-		listStyle: 'none',
-		margin: '10px',
-		display: 'inline-block',
-		border: '1px solid #ccc',
-		padding: '5px',
-		verticalAlign: 'top',
-	},
-}
-
 export default function Canvas({
 	image,
 	color_list,
@@ -84,8 +68,11 @@ export default function Canvas({
 	}, [render_webgl, image_el])
 
 	return (
-		<li style={styles.list_item}>
-			<canvas ref={canvas_ref} style={styles.canvas} />
+		<li className="list-none m-2.5 inline-block border border-gray-300 p-1.5 align-top">
+			<canvas
+				ref={canvas_ref}
+				className="max-w-[300px] max-h-[300px] block"
+			/>
 		</li>
 	)
 }
