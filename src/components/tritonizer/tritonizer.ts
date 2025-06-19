@@ -1,13 +1,17 @@
 // Shared WebGL tritonizer instance
 let shared_tritonizer: WebGLTritonizer | null = null
 
+interface ShaderPrograms {
+	program: WebGLProgram
+	blur_program: WebGLProgram
+}
+
 export class WebGLTritonizer {
-	private gl: WebGLRenderingContext | null = null
-	private program: WebGLProgram | null = null
-	private blur_program: WebGLProgram | null = null
+	private canvas_programs: WeakMap<HTMLCanvasElement, ShaderPrograms> =
+		new WeakMap()
 
 	constructor() {
-		// Only create shaders once
+		// Only create one instance
 		if (shared_tritonizer) {
 			return shared_tritonizer
 		}
@@ -21,19 +25,14 @@ export class WebGLTritonizer {
 		return shared_tritonizer
 	}
 
-	init_shaders(): void {
-		if (this.program && this.blur_program) {
-			return // Already initialized
-		}
-
-		// Create a temporary canvas to get WebGL context for shader compilation
-		const temp_canvas = document.createElement('canvas')
-		this.gl = (temp_canvas.getContext('webgl') ||
-			temp_canvas.getContext(
-				'experimental-webgl'
-			)) as WebGLRenderingContext
-		if (!this.gl) {
-			throw new Error('WebGL not supported')
+	init_shaders_for_canvas(
+		canvas: HTMLCanvasElement,
+		gl: WebGLRenderingContext
+	): ShaderPrograms {
+		// Check if we already have programs for this canvas
+		const existing = this.canvas_programs.get(canvas)
+		if (existing) {
+			return existing
 		}
 
 		// Vertex shader for full-screen quad
@@ -118,31 +117,39 @@ export class WebGLTritonizer {
 			}
 		`
 
-		this.program = this.create_program(
+		const program = this.create_program(
+			gl,
 			vertex_shader_source,
 			fragment_shader_source
 		)
-		this.blur_program = this.create_program(
+		const blur_program = this.create_program(
+			gl,
 			vertex_shader_source,
 			blur_fragment_shader_source
 		)
-		this.setup_geometry()
+		this.setup_geometry(gl)
+
+		// Store programs for this canvas
+		const programs = { program, blur_program }
+		this.canvas_programs.set(canvas, programs)
+		return programs
 	}
 
-	create_shader(type: number, source: string): WebGLShader {
-		if (!this.gl) {
-			throw new Error('WebGL context not initialized')
-		}
-		const shader = this.gl.createShader(type)
+	create_shader(
+		gl: WebGLRenderingContext,
+		type: number,
+		source: string
+	): WebGLShader {
+		const shader = gl.createShader(type)
 		if (!shader) {
 			throw new Error('Failed to create shader')
 		}
-		this.gl.shaderSource(shader, source)
-		this.gl.compileShader(shader)
+		gl.shaderSource(shader, source)
+		gl.compileShader(shader)
 
-		if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
+		if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
 			throw new Error(
-				'Shader compile error: ' + this.gl.getShaderInfoLog(shader)
+				'Shader compile error: ' + gl.getShaderInfoLog(shader)
 			)
 		}
 
@@ -150,52 +157,49 @@ export class WebGLTritonizer {
 	}
 
 	create_program(
+		gl: WebGLRenderingContext,
 		vertex_source: string,
 		fragment_source: string
 	): WebGLProgram {
-		if (!this.gl) {
-			throw new Error('WebGL context not initialized')
-		}
 		const vertex_shader = this.create_shader(
-			this.gl.VERTEX_SHADER,
+			gl,
+			gl.VERTEX_SHADER,
 			vertex_source
 		)
 		const fragment_shader = this.create_shader(
-			this.gl.FRAGMENT_SHADER,
+			gl,
+			gl.FRAGMENT_SHADER,
 			fragment_source
 		)
 
-		const program = this.gl.createProgram()
+		const program = gl.createProgram()
 		if (!program) {
 			throw new Error('Failed to create program')
 		}
-		this.gl.attachShader(program, vertex_shader)
-		this.gl.attachShader(program, fragment_shader)
-		this.gl.linkProgram(program)
+		gl.attachShader(program, vertex_shader)
+		gl.attachShader(program, fragment_shader)
+		gl.linkProgram(program)
 
-		if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
+		if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
 			throw new Error(
-				'Program link error: ' + this.gl.getProgramInfoLog(program)
+				'Program link error: ' + gl.getProgramInfoLog(program)
 			)
 		}
 
 		return program
 	}
 
-	setup_geometry(): void {
-		if (!this.gl) {
-			throw new Error('WebGL context not initialized')
-		}
+	setup_geometry(gl: WebGLRenderingContext): void {
 		const positions = new Float32Array([
 			-1, -1, 0, 0, 1, -1, 1, 0, -1, 1, 0, 1, 1, 1, 1, 1,
 		])
 
-		const buffer = this.gl.createBuffer()
+		const buffer = gl.createBuffer()
 		if (!buffer) {
 			throw new Error('Failed to create buffer')
 		}
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buffer)
-		this.gl.bufferData(this.gl.ARRAY_BUFFER, positions, this.gl.STATIC_DRAW)
+		gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
+		gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW)
 	}
 
 	create_texture_for_canvas(
@@ -284,8 +288,14 @@ export class WebGLTritonizer {
 		color_list: [number, number, number][],
 		blur_amount = 0
 	) {
-		// Initialize shaders once
-		this.init_shaders()
+		// Validate inputs
+		if (
+			!color_list ||
+			!Array.isArray(color_list) ||
+			color_list.length === 0
+		) {
+			throw new Error('Invalid color_list: must be a non-empty array')
+		}
 
 		// Get WebGL context for this specific canvas
 		const gl = (canvas.getContext('webgl') ||
@@ -293,6 +303,12 @@ export class WebGLTritonizer {
 		if (!gl) {
 			throw new Error('WebGL not supported on this canvas')
 		}
+
+		// Initialize or get shaders for this canvas
+		const { program, blur_program } = this.init_shaders_for_canvas(
+			canvas,
+			gl
+		)
 
 		const width = image.width
 		const height = image.height
@@ -317,21 +333,18 @@ export class WebGLTritonizer {
 
 			// Render blur to framebuffer
 			gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer)
-			if (!this.blur_program) {
-				throw new Error('Blur program not initialized')
-			}
-			gl.useProgram(this.blur_program)
+			gl.useProgram(blur_program)
 
-			this.setup_vertex_attributes(gl, this.blur_program)
+			this.setup_vertex_attributes(gl, blur_program)
 
-			gl.uniform1i(gl.getUniformLocation(this.blur_program, 'u_image'), 0)
+			gl.uniform1i(gl.getUniformLocation(blur_program, 'u_image'), 0)
 			gl.uniform2f(
-				gl.getUniformLocation(this.blur_program, 'u_resolution'),
+				gl.getUniformLocation(blur_program, 'u_resolution'),
 				width,
 				height
 			)
 			gl.uniform1f(
-				gl.getUniformLocation(this.blur_program, 'u_blurAmount'),
+				gl.getUniformLocation(blur_program, 'u_blurAmount'),
 				blur_amount
 			)
 
@@ -343,17 +356,14 @@ export class WebGLTritonizer {
 
 		// Render tritonize effect to canvas
 		gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-		if (!this.program) {
-			throw new Error('Program not initialized')
-		}
-		gl.useProgram(this.program)
+		gl.useProgram(program)
 
-		this.setup_vertex_attributes(gl, this.program)
+		this.setup_vertex_attributes(gl, program)
 
 		// Set uniforms
-		gl.uniform1i(gl.getUniformLocation(this.program, 'u_image'), 0)
+		gl.uniform1i(gl.getUniformLocation(program, 'u_image'), 0)
 		gl.uniform1i(
-			gl.getUniformLocation(this.program, 'u_colorCount'),
+			gl.getUniformLocation(program, 'u_colorCount'),
 			color_list.length
 		)
 
@@ -364,10 +374,7 @@ export class WebGLTritonizer {
 			color_array[i * 3 + 1] = color_list[i][1] / 255
 			color_array[i * 3 + 2] = color_list[i][2] / 255
 		}
-		gl.uniform3fv(
-			gl.getUniformLocation(this.program, 'u_colors'),
-			color_array
-		)
+		gl.uniform3fv(gl.getUniformLocation(program, 'u_colors'), color_array)
 
 		gl.bindTexture(gl.TEXTURE_2D, source_texture)
 		gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)

@@ -3,30 +3,30 @@ import { WebGLTritonizer } from './tritonizer'
 
 interface CanvasProps {
 	image: File
-	color_list: [number, number, number][]
-	blur_amount?: number
+	colorList: [number, number, number][]
+	blurAmount?: number
 	id: string | number
 }
 
 export default function Canvas({
 	image,
-	color_list,
-	blur_amount = 0,
+	colorList,
+	blurAmount = 0,
 }: CanvasProps) {
 	const canvas_ref = useRef<HTMLCanvasElement>(null)
 	const [image_el, set_image_el] = useState<HTMLImageElement | null>(null)
 
 	const render_webgl = useCallback(() => {
 		const canvas = canvas_ref.current
-		if (canvas && image_el) {
+		if (canvas && image_el && colorList && colorList.length > 0) {
 			try {
 				const tritonizer = WebGLTritonizer.getInstance()
-				tritonizer.render(canvas, image_el, color_list, blur_amount)
+				tritonizer.render(canvas, image_el, colorList, blurAmount)
 			} catch (error) {
 				console.error('WebGL render failed:', error)
 			}
 		}
-	}, [image_el, color_list, blur_amount])
+	}, [image_el, colorList, blurAmount])
 
 	const handle_image_loaded = useCallback(() => {
 		const canvas = canvas_ref.current
@@ -43,14 +43,17 @@ export default function Canvas({
 	}, [image_el, render_webgl])
 
 	useEffect(() => {
+		if (!image) return
+
 		const img = new Image()
-		img.crossOrigin = 'anonymous'
+		// Don't set crossOrigin for blob URLs
+		const url = URL.createObjectURL(image)
+
 		img.onload = handle_image_loaded
 		img.onerror = (error) => {
 			console.error('Image failed to load:', error)
 		}
 
-		const url = URL.createObjectURL(image)
 		img.src = url
 		set_image_el(img)
 
