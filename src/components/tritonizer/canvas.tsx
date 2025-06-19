@@ -1,57 +1,52 @@
-import React, { Component, createRef } from 'react'
-import _ from 'lodash'
+import { useRef, useEffect, useState, useCallback } from 'react'
 
 interface CanvasProps {
 	image: File
-	colorList: [number, number, number][]
-	blurAmount?: number
+	color_list: [number, number, number][]
+	blur_amount?: number
 	id: string | number
 }
 
-interface CanvasState {
-	imageEl: HTMLImageElement
-}
-
 // Shared WebGL tritonizer instance
-let sharedTritonizer: WebGLTritonizer | null = null
+let shared_tritonizer: WebGLTritonizer | null = null
 
 class WebGLTritonizer {
 	private gl: WebGLRenderingContext | null = null
 	private program: WebGLProgram | null = null
-	private blurProgram: WebGLProgram | null = null
-	private positionBuffer: WebGLBuffer | null = null
+	private blur_program: WebGLProgram | null = null
 
 	constructor() {
 		// Only create shaders once
-		if (sharedTritonizer) {
-			return sharedTritonizer
+		if (shared_tritonizer) {
+			return shared_tritonizer
 		}
-		sharedTritonizer = this
+		shared_tritonizer = this
 	}
 
 	static getInstance(): WebGLTritonizer {
-		if (!sharedTritonizer) {
-			sharedTritonizer = new WebGLTritonizer()
+		if (!shared_tritonizer) {
+			shared_tritonizer = new WebGLTritonizer()
 		}
-		return sharedTritonizer
+		return shared_tritonizer
 	}
 
-	initShaders() {
-		if (this.program && this.blurProgram) {
+	init_shaders(): void {
+		if (this.program && this.blur_program) {
 			return // Already initialized
 		}
 
 		// Create a temporary canvas to get WebGL context for shader compilation
-		const tempCanvas = document.createElement('canvas')
-		this.gl =
-			tempCanvas.getContext('webgl') ||
-			tempCanvas.getContext('experimental-webgl')
+		const temp_canvas = document.createElement('canvas')
+		this.gl = (temp_canvas.getContext('webgl') ||
+			temp_canvas.getContext(
+				'experimental-webgl'
+			)) as WebGLRenderingContext
 		if (!this.gl) {
 			throw new Error('WebGL not supported')
 		}
 
 		// Vertex shader for full-screen quad
-		const vertexShaderSource = `
+		const vertex_shader_source = `
 			attribute vec2 a_position;
 			attribute vec2 a_texCoord;
 			varying vec2 v_texCoord;
@@ -63,7 +58,7 @@ class WebGLTritonizer {
 		`
 
 		// Fragment shader for tritonize effect
-		const fragmentShaderSource = `
+		const fragment_shader_source = `
 			precision mediump float;
 			
 			uniform sampler2D u_image;
@@ -104,7 +99,7 @@ class WebGLTritonizer {
 		`
 
 		// Blur fragment shader
-		const blurFragmentShaderSource = `
+		const blur_fragment_shader_source = `
 			precision mediump float;
 			
 			uniform sampler2D u_image;
@@ -132,19 +127,25 @@ class WebGLTritonizer {
 			}
 		`
 
-		this.program = this.createProgram(
-			vertexShaderSource,
-			fragmentShaderSource
+		this.program = this.create_program(
+			vertex_shader_source,
+			fragment_shader_source
 		)
-		this.blurProgram = this.createProgram(
-			vertexShaderSource,
-			blurFragmentShaderSource
+		this.blur_program = this.create_program(
+			vertex_shader_source,
+			blur_fragment_shader_source
 		)
-		this.setupGeometry()
+		this.setup_geometry()
 	}
 
-	createShader(type, source) {
+	create_shader(type: number, source: string): WebGLShader {
+		if (!this.gl) {
+			throw new Error('WebGL context not initialized')
+		}
 		const shader = this.gl.createShader(type)
+		if (!shader) {
+			throw new Error('Failed to create shader')
+		}
 		this.gl.shaderSource(shader, source)
 		this.gl.compileShader(shader)
 
@@ -157,19 +158,28 @@ class WebGLTritonizer {
 		return shader
 	}
 
-	createProgram(vertexSource, fragmentSource) {
-		const vertexShader = this.createShader(
+	create_program(
+		vertex_source: string,
+		fragment_source: string
+	): WebGLProgram {
+		if (!this.gl) {
+			throw new Error('WebGL context not initialized')
+		}
+		const vertex_shader = this.create_shader(
 			this.gl.VERTEX_SHADER,
-			vertexSource
+			vertex_source
 		)
-		const fragmentShader = this.createShader(
+		const fragment_shader = this.create_shader(
 			this.gl.FRAGMENT_SHADER,
-			fragmentSource
+			fragment_source
 		)
 
 		const program = this.gl.createProgram()
-		this.gl.attachShader(program, vertexShader)
-		this.gl.attachShader(program, fragmentShader)
+		if (!program) {
+			throw new Error('Failed to create program')
+		}
+		this.gl.attachShader(program, vertex_shader)
+		this.gl.attachShader(program, fragment_shader)
 		this.gl.linkProgram(program)
 
 		if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
@@ -181,18 +191,30 @@ class WebGLTritonizer {
 		return program
 	}
 
-	setupGeometry() {
+	setup_geometry(): void {
+		if (!this.gl) {
+			throw new Error('WebGL context not initialized')
+		}
 		const positions = new Float32Array([
 			-1, -1, 0, 0, 1, -1, 1, 0, -1, 1, 0, 1, 1, 1, 1, 1,
 		])
 
 		const buffer = this.gl.createBuffer()
+		if (!buffer) {
+			throw new Error('Failed to create buffer')
+		}
 		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buffer)
 		this.gl.bufferData(this.gl.ARRAY_BUFFER, positions, this.gl.STATIC_DRAW)
 	}
 
-	createTextureForCanvas(gl: WebGLRenderingContext, image: HTMLImageElement) {
+	create_texture_for_canvas(
+		gl: WebGLRenderingContext,
+		image: HTMLImageElement
+	): WebGLTexture {
 		const texture = gl.createTexture()
+		if (!texture) {
+			throw new Error('Failed to create texture')
+		}
 		gl.bindTexture(gl.TEXTURE_2D, texture)
 		gl.texImage2D(
 			gl.TEXTURE_2D,
@@ -209,15 +231,21 @@ class WebGLTritonizer {
 		return texture
 	}
 
-	setupFramebufferForCanvas(
+	setup_framebuffer_for_canvas(
 		gl: WebGLRenderingContext,
 		width: number,
 		height: number
-	) {
+	): { framebuffer: WebGLFramebuffer; blur_texture: WebGLTexture } {
 		const framebuffer = gl.createFramebuffer()
-		const blurTexture = gl.createTexture()
+		if (!framebuffer) {
+			throw new Error('Failed to create framebuffer')
+		}
+		const blur_texture = gl.createTexture()
+		if (!blur_texture) {
+			throw new Error('Failed to create blur texture')
+		}
 
-		gl.bindTexture(gl.TEXTURE_2D, blurTexture)
+		gl.bindTexture(gl.TEXTURE_2D, blur_texture)
 		gl.texImage2D(
 			gl.TEXTURE_2D,
 			0,
@@ -239,128 +267,127 @@ class WebGLTritonizer {
 			gl.FRAMEBUFFER,
 			gl.COLOR_ATTACHMENT0,
 			gl.TEXTURE_2D,
-			blurTexture,
+			blur_texture,
 			0
 		)
 
-		return { framebuffer, blurTexture }
+		return { framebuffer, blur_texture }
 	}
 
-	setupVertexAttributes(gl: WebGLRenderingContext, program: WebGLProgram) {
-		const positionLoc = gl.getAttribLocation(program, 'a_position')
-		const texCoordLoc = gl.getAttribLocation(program, 'a_texCoord')
+	setup_vertex_attributes(
+		gl: WebGLRenderingContext,
+		program: WebGLProgram
+	): void {
+		const position_loc = gl.getAttribLocation(program, 'a_position')
+		const tex_coord_loc = gl.getAttribLocation(program, 'a_texCoord')
 
-		gl.enableVertexAttribArray(positionLoc)
-		gl.enableVertexAttribArray(texCoordLoc)
-		gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 16, 0)
-		gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 16, 8)
+		gl.enableVertexAttribArray(position_loc)
+		gl.enableVertexAttribArray(tex_coord_loc)
+		gl.vertexAttribPointer(position_loc, 2, gl.FLOAT, false, 16, 0)
+		gl.vertexAttribPointer(tex_coord_loc, 2, gl.FLOAT, false, 16, 8)
 	}
 
 	render(
 		canvas: HTMLCanvasElement,
 		image: HTMLImageElement,
-		colorList: [number, number, number][],
-		blurAmount = 0
+		color_list: [number, number, number][],
+		blur_amount = 0
 	) {
 		// Initialize shaders once
-		this.initShaders()
+		this.init_shaders()
 
 		// Get WebGL context for this specific canvas
-		const gl =
-			canvas.getContext('webgl') ||
-			canvas.getContext('experimental-webgl')
+		const gl = (canvas.getContext('webgl') ||
+			canvas.getContext('experimental-webgl')) as WebGLRenderingContext
 		if (!gl) {
 			throw new Error('WebGL not supported on this canvas')
 		}
 
-		const width = image.width || image.videoWidth
-		const height = image.height || image.videoHeight
-
-		console.log(
-			'WebGL render - image size:',
-			width,
-			'x',
-			height,
-			'colors:',
-			colorList.length
-		)
+		const width = image.width
+		const height = image.height
 
 		gl.viewport(0, 0, width, height)
 
 		// Create texture from image for this canvas
-		const texture = this.createTextureForCanvas(gl, image)
-		let sourceTexture = texture
+		const texture = this.create_texture_for_canvas(gl, image)
+		let source_texture = texture
 
 		// Apply blur if needed
 		let framebuffer = null
-		let blurTexture = null
-		if (blurAmount > 0) {
-			const blurResources = this.setupFramebufferForCanvas(
+		let blur_texture = null
+		if (blur_amount > 0) {
+			const blur_resources = this.setup_framebuffer_for_canvas(
 				gl,
 				width,
 				height
 			)
-			framebuffer = blurResources.framebuffer
-			blurTexture = blurResources.blurTexture
+			framebuffer = blur_resources.framebuffer
+			blur_texture = blur_resources.blur_texture
 
 			// Render blur to framebuffer
 			gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer)
-			gl.useProgram(this.blurProgram)
+			if (!this.blur_program) {
+				throw new Error('Blur program not initialized')
+			}
+			gl.useProgram(this.blur_program)
 
-			this.setupVertexAttributes(gl, this.blurProgram)
+			this.setup_vertex_attributes(gl, this.blur_program)
 
-			gl.uniform1i(gl.getUniformLocation(this.blurProgram, 'u_image'), 0)
+			gl.uniform1i(gl.getUniformLocation(this.blur_program, 'u_image'), 0)
 			gl.uniform2f(
-				gl.getUniformLocation(this.blurProgram, 'u_resolution'),
+				gl.getUniformLocation(this.blur_program, 'u_resolution'),
 				width,
 				height
 			)
 			gl.uniform1f(
-				gl.getUniformLocation(this.blurProgram, 'u_blurAmount'),
-				blurAmount
+				gl.getUniformLocation(this.blur_program, 'u_blurAmount'),
+				blur_amount
 			)
 
 			gl.bindTexture(gl.TEXTURE_2D, texture)
 			gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
-			sourceTexture = blurTexture
+			source_texture = blur_texture
 		}
 
 		// Render tritonize effect to canvas
 		gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+		if (!this.program) {
+			throw new Error('Program not initialized')
+		}
 		gl.useProgram(this.program)
 
-		this.setupVertexAttributes(gl, this.program)
+		this.setup_vertex_attributes(gl, this.program)
 
 		// Set uniforms
 		gl.uniform1i(gl.getUniformLocation(this.program, 'u_image'), 0)
 		gl.uniform1i(
 			gl.getUniformLocation(this.program, 'u_colorCount'),
-			colorList.length
+			color_list.length
 		)
 
 		// Pass color palette to shader
-		const colorArray = new Float32Array(48) // 16 colors * 3 components
-		for (let i = 0; i < Math.min(colorList.length, 16); i++) {
-			colorArray[i * 3] = colorList[i][0] / 255
-			colorArray[i * 3 + 1] = colorList[i][1] / 255
-			colorArray[i * 3 + 2] = colorList[i][2] / 255
+		const color_array = new Float32Array(48) // 16 colors * 3 components
+		for (let i = 0; i < Math.min(color_list.length, 16); i++) {
+			color_array[i * 3] = color_list[i][0] / 255
+			color_array[i * 3 + 1] = color_list[i][1] / 255
+			color_array[i * 3 + 2] = color_list[i][2] / 255
 		}
 		gl.uniform3fv(
 			gl.getUniformLocation(this.program, 'u_colors'),
-			colorArray
+			color_array
 		)
 
-		gl.bindTexture(gl.TEXTURE_2D, sourceTexture)
+		gl.bindTexture(gl.TEXTURE_2D, source_texture)
 		gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
 		// Clean up canvas-specific resources
 		gl.deleteTexture(texture)
 		if (framebuffer) gl.deleteFramebuffer(framebuffer)
-		if (blurTexture) gl.deleteTexture(blurTexture)
+		if (blur_texture) gl.deleteTexture(blur_texture)
 	}
 
-	cleanup() {
+	cleanup(): void {
 		// Shared resources are cleaned up when the page unloads
 		// Individual canvas resources are cleaned up after each render
 	}
@@ -372,7 +399,7 @@ const styles = {
 		maxHeight: '300px',
 		display: 'block',
 	},
-	listItem: {
+	list_item: {
 		listStyle: 'none',
 		margin: '10px',
 		display: 'inline-block',
@@ -382,112 +409,68 @@ const styles = {
 	},
 }
 
-export default class Canvas extends Component<CanvasProps, CanvasState> {
-	private canvasRef = createRef<HTMLCanvasElement>()
-	private imageUrl: string
+export default function Canvas({
+	image,
+	color_list,
+	blur_amount = 0,
+}: CanvasProps) {
+	const canvas_ref = useRef<HTMLCanvasElement>(null)
+	const [image_el, set_image_el] = useState<HTMLImageElement | null>(null)
 
-	constructor(props: CanvasProps) {
-		super(props)
-
-		console.log('Canvas constructor called with image:', this.props.image)
-
-		const img = new Image()
-		img.crossOrigin = 'anonymous' // Allow cross-origin images
-		img.onload = this.handleImageLoaded.bind(this)
-		img.onerror = (error) => {
-			console.error('Image failed to load:', error)
-		}
-
-		// Create object URL from the File object
-		this.imageUrl = URL.createObjectURL(this.props.image)
-		console.log('Setting image src to:', this.imageUrl)
-		img.src = this.imageUrl
-
-		this.state = {
-			imageEl: img,
-		}
-	}
-
-	componentWillUnmount() {
-		// Clean up the object URL to prevent memory leaks
-		if (this.imageUrl) {
-			URL.revokeObjectURL(this.imageUrl)
-		}
-	}
-
-	handleImageLoaded = () => {
-		console.log('handleImageLoaded called!')
-		const img = this.state.imageEl
-		const canvas = this.canvasRef.current
-
-		if (!canvas) {
-			console.error('Canvas ref not found')
-			return
-		}
-
-		console.log('Image loaded:', img.width, 'x', img.height)
-		console.log('Canvas element found:', canvas)
-
-		// Set canvas internal resolution to match image exactly
-		canvas.width = img.width
-		canvas.height = img.height
-
-		try {
-			this.renderWebGL()
-		} catch (error) {
-			console.error('WebGL render failed:', error)
-		}
-	}
-
-	renderWebGL() {
-		const canvas = this.canvasRef.current
-		if (canvas && this.state.imageEl) {
-			console.log('Rendering with colors:', this.props.colorList)
+	const render_webgl = useCallback(() => {
+		const canvas = canvas_ref.current
+		if (canvas && image_el) {
 			try {
 				const tritonizer = WebGLTritonizer.getInstance()
-				tritonizer.render(
-					canvas,
-					this.state.imageEl,
-					this.props.colorList,
-					this.props.blurAmount || 0
-				)
-				console.log('WebGL render completed')
+				tritonizer.render(canvas, image_el, color_list, blur_amount)
 			} catch (error) {
 				console.error('WebGL render failed:', error)
 			}
 		}
-	}
+	}, [image_el, color_list, blur_amount])
 
-	shouldComponentUpdate(nextProps: CanvasProps, nextState: CanvasState) {
-		// Check if colors are the same
-		if (
-			_.isEqual(this.props.colorList, nextProps.colorList) &&
-			this.props.blurAmount === nextProps.blurAmount
-		) {
-			return false
+	const handle_image_loaded = useCallback(() => {
+		const canvas = canvas_ref.current
+		if (!canvas || !image_el) return
+
+		canvas.width = image_el.width
+		canvas.height = image_el.height
+
+		try {
+			render_webgl()
+		} catch (error) {
+			console.error('WebGL render failed:', error)
+		}
+	}, [image_el, render_webgl])
+
+	useEffect(() => {
+		const img = new Image()
+		img.crossOrigin = 'anonymous'
+		img.onload = handle_image_loaded
+		img.onerror = (error) => {
+			console.error('Image failed to load:', error)
 		}
 
-		return true
-	}
+		const url = URL.createObjectURL(image)
+		img.src = url
+		set_image_el(img)
 
-	componentDidUpdate(prevProps: CanvasProps) {
-		// Re-render when props change
-		if (
-			!_.isEqual(this.props.colorList, prevProps.colorList) ||
-			this.props.blurAmount !== prevProps.blurAmount
-		) {
-			if (this.state.imageEl) {
-				this.renderWebGL()
+		return () => {
+			if (url) {
+				URL.revokeObjectURL(url)
 			}
 		}
-	}
+	}, [image, handle_image_loaded])
 
-	render() {
-		console.log('Canvas render called with props:', this.props.id)
-		return (
-			<li style={styles.listItem}>
-				<canvas ref={this.canvasRef} style={styles.canvas} />
-			</li>
-		)
-	}
+	useEffect(() => {
+		if (image_el) {
+			render_webgl()
+		}
+	}, [render_webgl, image_el])
+
+	return (
+		<li style={styles.list_item}>
+			<canvas ref={canvas_ref} style={styles.canvas} />
+		</li>
+	)
 }
