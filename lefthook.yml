@@ -1,6 +1,6 @@
 pre-commit:
-  commands:
-    format:
-      glob: "*.{js,jsx,ts,tsx,json,css,md}"
-      run: pnpx prettier --write {staged_files} && git add {staged_files}
-      stage_fixed: true
+    commands:
+        format:
+            glob: '*.{js,jsx,ts,tsx,json,css,md}'
+            run: pnpx prettier --write {staged_files} && git add {staged_files}
+            stage_fixed: true
