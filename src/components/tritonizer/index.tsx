@@ -1,9 +1,50 @@
 import React from 'react'
 import { useSelector } from 'react-redux'
-import Combinatorics from 'js-combinatorics'
 
 import Canvas from './canvas.tsx'
 import { RootState } from '../../store/index'
+
+function generateAllPartialPermutations<T>(arr: T[]): T[][] {
+	const result: T[][] = []
+
+	function permute(items: T[]): T[][] {
+		if (items.length <= 1) return [items]
+		const perms: T[][] = []
+		for (let i = 0; i < items.length; i++) {
+			const rest = [...items.slice(0, i), ...items.slice(i + 1)]
+			const restPerms = permute(rest)
+			for (const perm of restPerms) {
+				perms.push([items[i], ...perm])
+			}
+		}
+		return perms
+	}
+
+	function combine(items: T[], size: number): T[][] {
+		if (size === 1) return items.map((item) => [item])
+		if (size === items.length) return [items]
+		const combos: T[][] = []
+		for (let i = 0; i <= items.length - size; i++) {
+			const head = items[i]
+			const rest = items.slice(i + 1)
+			const restCombos = combine(rest, size - 1)
+			for (const combo of restCombos) {
+				combos.push([head, ...combo])
+			}
+		}
+		return combos
+	}
+
+	for (let size = 1; size <= arr.length; size++) {
+		const combinations = combine(arr, size)
+		for (const combo of combinations) {
+			const permutations = permute(combo)
+			result.push(...permutations)
+		}
+	}
+
+	return result
+}
 
 function Tritonizer() {
 	const image = useSelector((state: RootState) => state.file.file)
@@ -21,9 +62,9 @@ function Tritonizer() {
 		)
 	}
 
-	const color_perms = Combinatorics.permutationCombination(color_list)
-		.toArray()
-		.filter((list) => list.length > 1)
+	const color_perms = generateAllPartialPermutations(color_list).filter(
+		(list) => list.length > 1
+	)
 	const canvas_array = []
 	let id_no = 0
 	while (id_no < color_perms.length) {

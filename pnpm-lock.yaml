@@ -32,9 +32,6 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
-      js-combinatorics:
-        specifier: ^0.5.2
-        version: 0.5.5
       lodash:
         specifier: ^4.17.4
         version: 4.17.21
@@ -1219,9 +1216,6 @@ packages:
   jiti@2.4.2:
     resolution: {integrity: sha512-rg9zJN+G4n2nfJl5MW3BMygZX56zKPNVEYYqq7adpmMh4Jn2QNEwhvQlFy6jPVdcod7txZtKHWnyZiA3a0zP7A==}
     hasBin: true
-
-  js-combinatorics@0.5.5:
-    resolution: {integrity: sha512-WglFY9EQvwndNhuJLxxyjnC16649lfZly/G3M3zgQMwcWlJDJ0Jn9niPWeYjnLXwWOEycYVxR2Tk98WLeFkrcw==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -2937,8 +2931,6 @@ snapshots:
 
   jiti@2.4.2:
     optional: true
-
-  js-combinatorics@0.5.5: {}
 
   js-tokens@4.0.0: {}
 
