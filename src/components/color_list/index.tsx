@@ -5,8 +5,8 @@ import { Button } from '../ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Slider } from '../ui/slider'
 import ColorCell from './color_cell.tsx'
-import { resetColors, changeBlurAmount } from '../../store/color_slice'
-import { clearFile } from '../../store/file_slice'
+import { reset_colors, change_blur_amount } from '../../store/color_slice'
+import { clear_file } from '../../store/file_slice'
 import { RootState } from '../../store/index'
 
 function ColorList() {
@@ -15,19 +15,19 @@ function ColorList() {
 		(state: RootState) => state.color.colors
 	)
 	const blur_amount = useSelector(
-		(state: RootState) => state.color.blurAmount
+		(state: RootState) => state.color.blur_amount
 	)
 
 	const handle_clear_colors = () => {
-		dispatch(resetColors())
+		dispatch(reset_colors())
 	}
 
 	const handle_clear_file = () => {
-		dispatch(clearFile())
+		dispatch(clear_file())
 	}
 
 	const handle_blur_change = (value: number) => {
-		dispatch(changeBlurAmount(value))
+		dispatch(change_blur_amount(value))
 	}
 	return (
 		<div className="space-y-4">

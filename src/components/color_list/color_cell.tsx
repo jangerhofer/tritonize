@@ -6,7 +6,7 @@ import { X, Plus } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Card } from '../ui/card'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
-import { addColor, removeColor, changeColor } from '../../store/color_slice'
+import { add_color, remove_color, change_color } from '../../store/color_slice'
 
 interface color_cell_props {
 	color: string
@@ -21,18 +21,18 @@ function ColorCell({ color, index, is_new = false }: color_cell_props) {
 
 	const handle_click = () => {
 		if (is_new) {
-			dispatch(addColor(chroma('white').rgb()))
+			dispatch(add_color(chroma('white').rgb()))
 		}
 	}
 
 	const handle_delete_color = () => {
-		dispatch(removeColor(chroma(color).rgb()))
+		dispatch(remove_color(chroma(color).rgb()))
 	}
 
 	const handle_color_change = (color: any) => {
 		if (index !== undefined) {
 			dispatch(
-				changeColor({
+				change_color({
 					index,
 					color: [color.rgb.r, color.rgb.g, color.rgb.b],
 				})

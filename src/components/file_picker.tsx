@@ -5,7 +5,7 @@ import { Upload, Image as ImageIcon } from 'lucide-react'
 import { Button } from './ui/button'
 import { Card, CardContent } from './ui/card'
 import Tritonizer from './tritonizer/index.tsx'
-import { addFile } from '../store/file_slice'
+import { add_file } from '../store/file_slice'
 import { RootState } from '../store/index'
 
 function FilePicker() {
@@ -15,7 +15,7 @@ function FilePicker() {
 	const on_drop = useCallback(
 		(accepted_files: File[]) => {
 			if (accepted_files[0]) {
-				dispatch(addFile(accepted_files[0]))
+				dispatch(add_file(accepted_files[0]))
 			}
 		},
 		[dispatch]

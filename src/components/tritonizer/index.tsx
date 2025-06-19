@@ -1,10 +1,9 @@
-import React from 'react'
 import { useSelector } from 'react-redux'
 
 import Canvas from './canvas.tsx'
 import { RootState } from '../../store/index'
 
-function generateAllPartialPermutations<T>(arr: T[]): T[][] {
+function generate_all_partial_permutations<T>(arr: T[]): T[][] {
 	const result: T[][] = []
 
 	function permute(items: T[]): T[][] {
@@ -50,7 +49,7 @@ function Tritonizer() {
 	const image = useSelector((state: RootState) => state.file.file)
 	const color_list = useSelector((state: RootState) => state.color.colors)
 	const blur_amount = useSelector(
-		(state: RootState) => state.color.blurAmount
+		(state: RootState) => state.color.blur_amount
 	)
 
 	if (color_list.length <= 1) {
@@ -62,7 +61,7 @@ function Tritonizer() {
 		)
 	}
 
-	const color_perms = generateAllPartialPermutations(color_list).filter(
+	const color_perms = generate_all_partial_permutations(color_list).filter(
 		(list) => list.length > 1
 	)
 	const canvas_array = []
@@ -73,8 +72,8 @@ function Tritonizer() {
 				key={id_no}
 				image={image}
 				id={id_no}
-				colorList={color_perms[id_no]}
-				blurAmount={blur_amount}
+				color_list={color_perms[id_no]}
+				blur_amount={blur_amount}
 			/>
 		)
 		id_no++

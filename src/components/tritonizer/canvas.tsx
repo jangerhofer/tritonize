@@ -3,30 +3,30 @@ import { WebGLTritonizer } from './tritonizer'
 
 interface CanvasProps {
 	image: File
-	colorList: [number, number, number][]
-	blurAmount?: number
+	color_list: [number, number, number][]
+	blur_amount?: number
 	id: string | number
 }
 
 export default function Canvas({
 	image,
-	colorList,
-	blurAmount = 0,
+	color_list,
+	blur_amount = 0,
 }: CanvasProps) {
 	const canvas_ref = useRef<HTMLCanvasElement>(null)
 	const [image_el, set_image_el] = useState<HTMLImageElement | null>(null)
 
 	const render_webgl = useCallback(() => {
 		const canvas = canvas_ref.current
-		if (canvas && image_el && colorList && colorList.length > 0) {
+		if (canvas && image_el && color_list && color_list.length > 0) {
 			try {
-				const tritonizer = WebGLTritonizer.getInstance()
-				tritonizer.render(canvas, image_el, colorList, blurAmount)
+				const tritonizer = WebGLTritonizer.get_instance()
+				tritonizer.render(canvas, image_el, color_list, blur_amount)
 			} catch (error) {
 				console.error('WebGL render failed:', error)
 			}
 		}
-	}, [image_el, colorList, blurAmount])
+	}, [image_el, color_list, blur_amount])
 
 	const handle_image_loaded = useCallback(() => {
 		const canvas = canvas_ref.current

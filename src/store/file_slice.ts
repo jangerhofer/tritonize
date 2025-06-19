@@ -12,14 +12,14 @@ const fileSlice = createSlice({
 	name: 'file',
 	initialState,
 	reducers: {
-		addFile: (state, action: PayloadAction<File>) => {
+		add_file: (state, action: PayloadAction<File>) => {
 			state.file = action.payload
 		},
-		clearFile: (state) => {
+		clear_file: (state) => {
 			state.file = null
 		},
 	},
 })
 
-export const { addFile, clearFile } = fileSlice.actions
+export const { add_file, clear_file } = fileSlice.actions
 export default fileSlice.reducer

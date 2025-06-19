@@ -18,7 +18,7 @@ export class WebGLTritonizer {
 		shared_tritonizer = this
 	}
 
-	static getInstance(): WebGLTritonizer {
+	static get_instance(): WebGLTritonizer {
 		if (!shared_tritonizer) {
 			shared_tritonizer = new WebGLTritonizer()
 		}

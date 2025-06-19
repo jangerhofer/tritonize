@@ -4,7 +4,7 @@ export type Color = [number, number, number]
 // Redux state types
 export interface ColorState {
 	colors: Color[]
-	blurAmount: number
+	blur_amount: number
 }
 
 export interface FileState {
@@ -34,7 +34,7 @@ export interface ColorResetAction {
 
 export interface ColorBlurChangeAction {
 	type: 'COLOR/BLUR_CHANGE'
-	blurAmount: number
+	blur_amount: number
 }
 
 export interface ColorRemoveAction {

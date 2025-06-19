@@ -4,7 +4,7 @@ import { Color } from '../types/index'
 
 interface ColorState {
 	colors: Color[]
-	blurAmount: number
+	blur_amount: number
 }
 
 const initialState: ColorState = {
@@ -13,29 +13,29 @@ const initialState: ColorState = {
 		[255, 255, 255],
 		[0, 0, 0],
 	],
-	blurAmount: 0,
+	blur_amount: 0,
 }
 
 const colorSlice = createSlice({
 	name: 'color',
 	initialState,
 	reducers: {
-		changeColor: (
+		change_color: (
 			state,
 			action: PayloadAction<{ index: number; color: Color }>
 		) => {
 			state.colors[action.payload.index] = action.payload.color
 		},
-		addColor: (state, action: PayloadAction<Color>) => {
+		add_color: (state, action: PayloadAction<Color>) => {
 			state.colors.push(action.payload)
 		},
-		resetColors: (state) => {
+		reset_colors: (state) => {
 			state.colors = []
 		},
-		changeBlurAmount: (state, action: PayloadAction<number>) => {
-			state.blurAmount = action.payload
+		change_blur_amount: (state, action: PayloadAction<number>) => {
+			state.blur_amount = action.payload
 		},
-		removeColor: (state, action: PayloadAction<Color>) => {
+		remove_color: (state, action: PayloadAction<Color>) => {
 			state.colors = state.colors.filter(
 				(color) => !_.isEqual(color, action.payload)
 			)
@@ -44,10 +44,10 @@ const colorSlice = createSlice({
 })
 
 export const {
-	changeColor,
-	addColor,
-	resetColors,
-	changeBlurAmount,
-	removeColor,
+	change_color,
+	add_color,
+	reset_colors,
+	change_blur_amount,
+	remove_color,
 } = colorSlice.actions
 export default colorSlice.reducer
