@@ -8,6 +8,9 @@ import { RootState } from '../../store/index'
 function Tritonizer() {
 	const image = useSelector((state: RootState) => state.file.file)
 	const color_list = useSelector((state: RootState) => state.color.colors)
+	const blur_amount = useSelector(
+		(state: RootState) => state.color.blurAmount
+	)
 
 	if (color_list.length <= 1) {
 		return (
@@ -30,6 +33,7 @@ function Tritonizer() {
 				image={image}
 				id={id_no}
 				colorList={color_perms[id_no]}
+				blurAmount={blur_amount}
 			/>
 		)
 		id_no++

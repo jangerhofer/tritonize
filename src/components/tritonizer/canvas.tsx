@@ -35,7 +35,16 @@ const imageManipulator = operative({
 	sigmoid,
 	tritonize,
 	run: function (jobData, cb) {
-		cb(this.tritonize(jobData.imageData, jobData.colorList), jobData)
+		let processedData = jobData.imageData
+		if (jobData.blurAmount > 0) {
+			processedData = this.blurImage(
+				processedData,
+				jobData.image.width,
+				jobData.image.height,
+				jobData.blurAmount
+			)
+		}
+		cb(this.tritonize(processedData, jobData.colorList), jobData)
 	},
 	update: function (imageData, newColor, oldColor, cb) {
 		for (let i = 0; i < imageData.length; i += 4) {
@@ -106,6 +115,7 @@ export default class Canvas extends Component {
 			imageData: originalData,
 			index: this.props.id,
 			colorList: this.props.colorList,
+			blurAmount: this.props.blurAmount || 0,
 		}
 		imageManipulator.run(jobData, (imageData, originalJobData) => {
 			const ctx = canvas.getContext('2d')

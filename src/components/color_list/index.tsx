@@ -66,7 +66,6 @@ function ColorList() {
 							min={0}
 							max={5}
 							step={0.1}
-							disabled
 							className="w-full"
 						/>
 					</div>
