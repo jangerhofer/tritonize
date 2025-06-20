@@ -12,7 +12,8 @@
 		"resolveJsonModule": true,
 		"isolatedModules": true,
 		"noEmit": true,
-		"jsx": "react-jsx",
+		"jsx": "preserve",
+		"jsxImportSource": "solid-js",
 
 		/* Linting */
 		"strict": true,
@@ -23,7 +24,13 @@
 		/* Additional options for better compatibility */
 		"esModuleInterop": true,
 		"allowSyntheticDefaultImports": true,
-		"forceConsistentCasingInFileNames": true
+		"forceConsistentCasingInFileNames": true,
+
+		/* Path mappings */
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["./src/*"]
+		}
 	},
 	"include": ["src", "vite.config.ts"]
 }

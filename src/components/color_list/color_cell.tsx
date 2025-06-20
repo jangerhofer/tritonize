@@ -1,87 +1,110 @@
-import React, { useState } from 'react'
-import { useDispatch } from 'react-redux'
-import { SketchPicker } from 'react-color'
+import { type Component, type JSX, createSignal, Show } from 'solid-js'
 import chroma from 'chroma-js'
-import { X, Plus } from 'lucide-react'
+import { X, Plus } from 'lucide-solid'
 import { Button } from '../ui/button'
 import { Card } from '../ui/card'
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
-import { add_color, remove_color, change_color } from '../../store/color_slice'
+import { store } from '../../store/store'
 
-interface color_cell_props {
+interface ColorCellProps {
 	color: string
 	index?: number
 	is_new?: boolean
-	children?: React.ReactNode
+	children?: JSX.Element
 }
 
-function ColorCell({ color, index, is_new = false }: color_cell_props) {
-	const [is_open, set_is_open] = useState(false)
-	const dispatch = useDispatch()
+const ColorCell: Component<ColorCellProps> = (props) => {
+	const [isOpen, setIsOpen] = createSignal(false)
+	const [tempColor, setTempColor] = createSignal(props.color)
 
-	const handle_click = () => {
-		if (is_new) {
-			dispatch(add_color(chroma('white').rgb()))
+	const handleClick = () => {
+		if (props.is_new) {
+			store.actions.add_color(chroma('white').rgb())
 		}
 	}
 
-	const handle_delete_color = () => {
-		dispatch(remove_color(chroma(color).rgb()))
+	const handleDeleteColor = () => {
+		store.actions.remove_color(chroma(props.color).rgb())
 	}
 
-	const handle_color_change = (color: any) => {
-		if (index !== undefined) {
-			dispatch(
-				change_color({
-					index,
-					color: [color.rgb.r, color.rgb.g, color.rgb.b],
-				})
-			)
+	const handleColorChange = (e: Event) => {
+		const target = e.target as HTMLInputElement
+		const newColor = target.value
+		setTempColor(newColor)
+
+		if (props.index !== undefined) {
+			const rgb = chroma(newColor).rgb()
+			store.actions.change_color(props.index, rgb)
 		}
 	}
 
-	if (is_new) {
-		return (
-			<Card
-				className="p-4 border-2 border-dashed border-gray-300 hover:border-blue-400 cursor-pointer transition-colors flex items-center justify-center min-h-12"
-				onClick={handle_click}
-			>
-				<div className="flex items-center gap-2 text-gray-500">
-					<Plus size={16} />
-					<span className="text-sm font-medium">Add Color</span>
-				</div>
-			</Card>
-		)
+	const rgbToHex = (color: string): string => {
+		const match = color.match(/rgb\((\d+),(\d+),(\d+)\)/)
+		if (match) {
+			const r = parseInt(match[1])
+			const g = parseInt(match[2])
+			const b = parseInt(match[3])
+			return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`
+		}
+		return '#ffffff'
 	}
 
 	return (
-		<div className="flex items-center gap-2">
-			<Popover open={is_open} onOpenChange={set_is_open}>
-				<PopoverTrigger asChild>
+		<Show
+			when={!props.is_new}
+			fallback={
+				<Card
+					class="p-4 border-2 border-dashed border-gray-300 hover:border-blue-400 cursor-pointer transition-colors flex items-center justify-center min-h-12"
+					onClick={handleClick}
+				>
+					<div class="flex items-center gap-2 text-gray-500">
+						<Plus size={16} />
+						<span class="text-sm font-medium">Add Color</span>
+					</div>
+				</Card>
+			}
+		>
+			<div class="flex items-center gap-2">
+				<div class="relative flex-1">
 					<div
-						className="flex-1 h-12 rounded-lg border-2 border-gray-200 cursor-pointer hover:border-blue-400 transition-colors"
-						style={{ backgroundColor: color }}
-						title={`Click to edit color: ${color}`}
+						class="h-12 rounded-lg border-2 border-gray-200 cursor-pointer hover:border-blue-400 transition-colors"
+						style={{ 'background-color': props.color }}
+						title={`Click to edit color: ${props.color}`}
+						onClick={() => setIsOpen(!isOpen())}
 					/>
-				</PopoverTrigger>
-				<PopoverContent className="w-auto p-0" align="start">
-					<SketchPicker
-						color={color}
-						onChange={handle_color_change}
-						onChangeComplete={() => set_is_open(false)}
-					/>
-				</PopoverContent>
-			</Popover>
+					<Show when={isOpen()}>
+						<div class="absolute top-14 left-0 z-50 w-64 rounded-md border bg-white p-4 shadow-md">
+							<div class="space-y-4">
+								<input
+									type="color"
+									value={rgbToHex(tempColor())}
+									onInput={handleColorChange}
+									class="w-full h-32 cursor-pointer"
+								/>
+								<div class="text-sm text-gray-600">
+									Current: {tempColor()}
+								</div>
+								<Button
+									onClick={() => setIsOpen(false)}
+									variant="outline"
+									class="w-full"
+								>
+									Close
+								</Button>
+							</div>
+						</div>
+					</Show>
+				</div>
 
-			<Button
-				variant="ghost"
-				size="icon"
-				onClick={handle_delete_color}
-				className="text-red-500 hover:text-red-700 hover:bg-red-50"
-			>
-				<X size={16} />
-			</Button>
-		</div>
+				<Button
+					variant="ghost"
+					size="icon"
+					onClick={handleDeleteColor}
+					class="text-red-500 hover:text-red-700 hover:bg-red-50"
+				>
+					<X size={16} />
+				</Button>
+			</div>
+		</Show>
 	)
 }
 

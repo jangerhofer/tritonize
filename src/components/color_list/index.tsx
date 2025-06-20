@@ -1,92 +1,81 @@
-import React from 'react'
-import { useSelector, useDispatch } from 'react-redux'
-import { Trash2, RotateCcw } from 'lucide-react'
+import { type Component, For } from 'solid-js'
+import { Trash2, RotateCcw } from 'lucide-solid'
 import { Button } from '../ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Slider } from '../ui/slider'
-import ColorCell from './color_cell.tsx'
-import { reset_colors, change_blur_amount } from '../../store/color_slice'
-import { clear_file } from '../../store/file_slice'
-import { RootState } from '../../store/index'
+import ColorCell from './color_cell'
+import { store } from '../../store/store'
 
-function ColorList() {
-	const dispatch = useDispatch()
-	const color_list_data = useSelector(
-		(state: RootState) => state.color.colors
-	)
-	const blur_amount = useSelector(
-		(state: RootState) => state.color.blur_amount
-	)
-
+const ColorList: Component = () => {
 	const handle_clear_colors = () => {
-		dispatch(reset_colors())
+		store.actions.reset_colors()
 	}
 
 	const handle_clear_file = () => {
-		dispatch(clear_file())
+		store.actions.clear_file()
 	}
 
-	const handle_blur_change = (value: number) => {
-		dispatch(change_blur_amount(value))
+	const handle_blur_change = (values: number[]) => {
+		store.actions.change_blur_amount(values[0])
 	}
+
 	return (
-		<div className="space-y-4">
+		<div class="space-y-4">
 			<Card>
 				<CardHeader>
-					<CardTitle className="text-lg">Color Palette</CardTitle>
+					<CardTitle class="text-lg">Color Palette</CardTitle>
 				</CardHeader>
-				<CardContent className="space-y-4">
-					<div className="grid gap-3">
-						{color_list_data.map((color, i) => (
-							<ColorCell
-								key={i}
-								index={i}
-								color={`rgb(${color[0]},${color[1]},${color[2]})`}
-							/>
-						))}
+				<CardContent class="space-y-4">
+					<div class="grid gap-3">
+						<For each={store.state.color.colors}>
+							{(color, i) => (
+								<ColorCell
+									index={i()}
+									color={`rgb(${color[0]},${color[1]},${color[2]})`}
+								/>
+							)}
+						</For>
 						<ColorCell is_new color="rgb(255,255,255)">
 							+
 						</ColorCell>
 					</div>
 
-					<div className="space-y-3">
-						<div className="flex items-center justify-between">
-							<label className="text-sm font-medium">
+					<div class="space-y-3">
+						<div class="flex items-center justify-between">
+							<label class="text-sm font-medium">
 								Blur Amount
 							</label>
-							<span className="text-sm text-gray-500">
-								{blur_amount}
+							<span class="text-sm text-gray-500">
+								{store.state.color.blur_amount}
 							</span>
 						</div>
 						<Slider
-							value={[blur_amount]}
-							onValueChange={(values) =>
-								handle_blur_change(values[0])
-							}
+							value={[store.state.color.blur_amount]}
+							onChange={handle_blur_change}
 							min={0}
 							max={5}
 							step={0.1}
-							className="w-full"
+							class="w-full"
 						/>
 					</div>
 				</CardContent>
 			</Card>
 
-			<div className="flex gap-2">
+			<div class="flex gap-2">
 				<Button
 					variant="outline"
 					onClick={handle_clear_colors}
-					className="flex-1"
+					class="flex-1"
 				>
-					<Trash2 className="w-4 h-4 mr-2" />
+					<Trash2 class="w-4 h-4 mr-2" />
 					Clear Colors
 				</Button>
 				<Button
 					variant="outline"
 					onClick={handle_clear_file}
-					className="flex-1"
+					class="flex-1"
 				>
-					<RotateCcw className="w-4 h-4 mr-2" />
+					<RotateCcw class="w-4 h-4 mr-2" />
 					Clear File
 				</Button>
 			</div>

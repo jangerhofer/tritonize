@@ -1,8 +1,7 @@
-import React from 'react'
+import { type Component } from 'solid-js'
+import ColorList from './color_list/index'
 
-import ColorList from './color_list/index.tsx'
-
-const Menu: React.FC = () => (
+const Menu: Component = () => (
 	<div>
 		<ColorList />
 	</div>

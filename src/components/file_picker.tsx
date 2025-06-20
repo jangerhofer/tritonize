@@ -1,81 +1,100 @@
-import React, { useCallback } from 'react'
-import { useDropzone } from 'react-dropzone'
-import { useSelector, useDispatch } from 'react-redux'
-import { Upload, Image as ImageIcon } from 'lucide-react'
+import { type Component, createSignal, Show } from 'solid-js'
+import { Upload, Image as ImageIcon } from 'lucide-solid'
 import { Button } from './ui/button'
 import { Card, CardContent } from './ui/card'
-import Tritonizer from './tritonizer/index.tsx'
-import { add_file } from '../store/file_slice'
-import { RootState } from '../store/index'
+import Tritonizer from './tritonizer/index'
+import { store } from '../store/store'
 
-function FilePicker() {
-	const dispatch = useDispatch()
-	const file = useSelector((state: RootState) => state.file.file)
+const FilePicker: Component = () => {
+	const [isDragActive, setIsDragActive] = createSignal(false)
 
-	const on_drop = useCallback(
-		(accepted_files: File[]) => {
-			if (accepted_files[0]) {
-				dispatch(add_file(accepted_files[0]))
+	const handleDrop = (e: DragEvent) => {
+		e.preventDefault()
+		e.stopPropagation()
+		setIsDragActive(false)
+
+		const files = e.dataTransfer?.files
+		if (files && files[0]) {
+			const file = files[0]
+			if (file.type.startsWith('image/')) {
+				store.actions.add_file(file)
+			} else {
+				console.error('Please drop a valid image file.')
 			}
-		},
-		[dispatch]
-	)
+		}
+	}
 
-	const on_drop_rejected = useCallback(() => {
-		console.error('Please drop a valid image file.')
-	}, [])
+	const handleDragOver = (e: DragEvent) => {
+		e.preventDefault()
+		e.stopPropagation()
+		setIsDragActive(true)
+	}
 
-	const { getRootProps, getInputProps, isDragActive } = useDropzone({
-		onDrop: on_drop,
-		onDropRejected: on_drop_rejected,
-		accept: {
-			'image/png': ['.png'],
-			'image/jpeg': ['.jpg', '.jpeg'],
-			'image/tiff': ['.tiff', '.tif'],
-		},
-		multiple: false,
-	})
+	const handleDragLeave = (e: DragEvent) => {
+		e.preventDefault()
+		e.stopPropagation()
+		setIsDragActive(false)
+	}
 
-	if (file) {
-		return <Tritonizer />
+	const handleFileInput = (e: Event) => {
+		const target = e.target as HTMLInputElement
+		const files = target.files
+		if (files && files[0]) {
+			store.actions.add_file(files[0])
+		}
 	}
 
 	return (
-		<Card
-			{...getRootProps()}
-			className={`
-				w-full max-w-2xl mx-auto cursor-pointer transition-colors
-				${
-					isDragActive
-						? 'border-blue-500 bg-blue-50'
-						: 'hover:border-blue-400 hover:bg-gray-50'
-				}
-			`}
-		>
-			<CardContent className="p-8">
-				<input {...getInputProps()} />
-				<div className="flex flex-col items-center gap-4 text-center">
-					{isDragActive ? (
-						<Upload className="h-12 w-12 text-blue-500" />
-					) : (
-						<ImageIcon className="h-12 w-12 text-gray-400" />
-					)}
-					<div className="space-y-2">
-						<p className="text-lg font-medium">
-							{isDragActive
-								? 'Drop your image here'
-								: 'Drop an image file here'}
-						</p>
-						<p className="text-sm text-gray-500">
-							Supports PNG, JPEG, and TIFF formats
-						</p>
-					</div>
-					<Button variant="outline" type="button">
-						Choose File
-					</Button>
-				</div>
-			</CardContent>
-		</Card>
+		<Show when={!store.state.file.file} fallback={<Tritonizer />}>
+			<Card
+				onDrop={handleDrop}
+				onDragOver={handleDragOver}
+				onDragLeave={handleDragLeave}
+				class={`
+					w-full max-w-2xl mx-auto cursor-pointer transition-colors
+					${
+						isDragActive()
+							? 'border-blue-500 bg-blue-50'
+							: 'hover:border-blue-400 hover:bg-gray-50'
+					}
+				`}
+			>
+				<CardContent class="p-8">
+					<input
+						type="file"
+						onChange={handleFileInput}
+						accept="image/png,image/jpeg,image/jpg,image/tiff,image/tif"
+						class="hidden"
+						id="file-input"
+					/>
+					<label for="file-input" class="cursor-pointer">
+						<div class="flex flex-col items-center gap-4 text-center">
+							<Show
+								when={isDragActive()}
+								fallback={
+									<ImageIcon class="h-12 w-12 text-gray-400" />
+								}
+							>
+								<Upload class="h-12 w-12 text-blue-500" />
+							</Show>
+							<div class="space-y-2">
+								<p class="text-lg font-medium">
+									{isDragActive()
+										? 'Drop your image here'
+										: 'Drop an image file here'}
+								</p>
+								<p class="text-sm text-gray-500">
+									Supports PNG, JPEG, and TIFF formats
+								</p>
+							</div>
+							<Button variant="outline" type="button">
+								Choose File
+							</Button>
+						</div>
+					</label>
+				</CardContent>
+			</Card>
+		</Show>
 	)
 }
 

@@ -1,8 +1,14 @@
-import { useSelector } from 'react-redux'
-import { useState, useEffect, useRef, useMemo } from 'react'
-
-import Canvas from './canvas.tsx'
-import { RootState } from '../../store/index'
+import {
+	type Component,
+	createSignal,
+	createMemo,
+	onMount,
+	onCleanup,
+	For,
+	Show,
+} from 'solid-js'
+import Canvas from './canvas'
+import { store } from '../../store/store'
 
 function generate_all_partial_permutations<T>(arr: T[]): T[][] {
 	const result: T[][] = []
@@ -46,33 +52,24 @@ function generate_all_partial_permutations<T>(arr: T[]): T[][] {
 	return result
 }
 
-function Tritonizer() {
-	const image = useSelector((state: RootState) => state.file.file)
-	const color_list = useSelector((state: RootState) => state.color.colors)
-	const blur_amount = useSelector(
-		(state: RootState) => state.color.blur_amount
-	)
-
-	const [visible_indices, set_visible_indices] = useState<Set<number>>(
+const Tritonizer: Component = () => {
+	const [visible_indices, set_visible_indices] = createSignal<Set<number>>(
 		new Set()
 	)
-	const ul_ref = useRef<HTMLUListElement>(null)
+	let ul_ref: HTMLUListElement | undefined
 
-	const color_perms = useMemo(
-		() =>
-			generate_all_partial_permutations(color_list).filter(
-				(list) => list.length > 1
-			),
-		[color_list]
+	const color_perms = createMemo(() =>
+		generate_all_partial_permutations(store.state.color.colors).filter(
+			(list) => list.length > 1
+		)
 	)
 
-	useEffect(() => {
-		const ul = ul_ref.current
-		if (!ul) return
+	onMount(() => {
+		if (!ul_ref) return
 
 		const observer = new IntersectionObserver(
 			(entries) => {
-				const updates = new Set(visible_indices)
+				const updates = new Set(visible_indices())
 				let hasChanges = false
 
 				entries.forEach((entry) => {
@@ -97,42 +94,42 @@ function Tritonizer() {
 
 		// Use setTimeout to ensure DOM is ready
 		const timer = setTimeout(() => {
-			const listItems = ul.querySelectorAll('li')
-			listItems.forEach((li) => observer.observe(li))
+			const listItems = ul_ref?.querySelectorAll('li')
+			listItems?.forEach((li) => observer.observe(li))
 		}, 0)
 
-		return () => {
+		onCleanup(() => {
 			clearTimeout(timer)
 			observer.disconnect()
-		}
-	}, [color_perms.length])
-
-	if (color_list.length <= 1) {
-		return (
-			<p>
-				Please choose more than one color; otherwise, your image will
-				show up as a solid rectangle.
-			</p>
-		)
-	}
-
-	if (!image) {
-		return null
-	}
+		})
+	})
 
 	return (
-		<ul ref={ul_ref}>
-			{color_perms.map((color_perm, index) => (
-				<Canvas
-					key={index}
-					image={image}
-					id={index}
-					color_list={color_perm}
-					blur_amount={blur_amount}
-					is_visible={visible_indices.has(index)}
-				/>
-			))}
-		</ul>
+		<Show
+			when={store.state.color.colors.length > 1}
+			fallback={
+				<p>
+					Please choose more than one color; otherwise, your image
+					will show up as a solid rectangle.
+				</p>
+			}
+		>
+			<Show when={store.state.file.file}>
+				<ul ref={ul_ref}>
+					<For each={color_perms()}>
+						{(color_perm, index) => (
+							<Canvas
+								image={store.state.file.file!}
+								id={index()}
+								color_list={color_perm}
+								blur_amount={store.state.color.blur_amount}
+								is_visible={visible_indices().has(index())}
+							/>
+						)}
+					</For>
+				</ul>
+			</Show>
+		</Show>
 	)
 }
 

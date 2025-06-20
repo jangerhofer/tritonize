@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import solid from 'vite-plugin-solid'
 import path from 'path'
 
 export default defineConfig({
-	plugins: [react()],
+	plugins: [solid()],
 	base: '/tritonize/',
 	build: {
 		outDir: 'build',

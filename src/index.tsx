@@ -1,17 +1,14 @@
-import React from 'react'
-import { createRoot } from 'react-dom/client'
-
-import App from './App.tsx'
+/* @refresh reload */
+import { render } from 'solid-js/web'
 import './index.css'
+import App from './App'
 
-const rootEl = document.getElementById('root')
-if (!rootEl) throw new Error('Root element not found')
-const root = createRoot(rootEl)
+const root = document.getElementById('root')
 
-root.render(<App />)
-
-if (import.meta.hot) {
-	import.meta.hot.accept('./App.tsx', () => {
-		root.render(<App />)
-	})
+if (!(root instanceof HTMLElement)) {
+	throw new Error(
+		'Root element not found. Did you forget to add it to your index.html? Or maybe the id attribute got misspelled?'
+	)
 }
+
+render(() => <App />, root!)
