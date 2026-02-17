@@ -29,7 +29,23 @@ bun run dev
 bun run typecheck
 bun run test
 bun run build
+bun run test:perf
 ```
+
+## Performance Gate
+
+- `bun run test:perf` builds production assets, serves `perf.html`, and runs a Playwright benchmark.
+- The harness benchmarks a 48MP synthetic source (`8000x6000`) with Tritonizer preview and export.
+- Default SLO gates:
+  - Preview p95 <= `120ms`
+  - Export p95 <= `8000ms`
+  - Max long task <= `50ms`
+- Runtime overrides are supported through env vars:
+  - `PERF_SOURCE_WIDTH`, `PERF_SOURCE_HEIGHT`
+  - `PERF_PREVIEW_WIDTH`, `PERF_PREVIEW_HEIGHT`
+  - `PERF_WARMUP_ITERATIONS`, `PERF_PREVIEW_ITERATIONS`, `PERF_EXPORT_ITERATIONS`
+  - `PERF_PREVIEW_P95_MS`, `PERF_EXPORT_P95_MS`, `PERF_MAX_LONG_TASK_MS`
+- Latest benchmark output is written to `perf-results/latest.json`.
 
 ## Notes
 
