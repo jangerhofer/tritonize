@@ -1,0 +1,242 @@
+.editor-shell {
+  min-height: 100vh;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at 10% 10%, #d6ecff 0, transparent 40%),
+    radial-gradient(circle at 90% 85%, #ffd7c8 0, transparent 40%),
+    linear-gradient(140deg, #eff2f5 0%, #dfe5eb 100%);
+}
+
+.editor-topbar {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding: 1rem 1.25rem;
+  border-radius: 1rem;
+  background: #0f1f2d;
+  color: #f5f9ff;
+}
+
+.editor-topbar h1 {
+  margin: 0;
+  font-size: 1.9rem;
+}
+
+.editor-topbar p {
+  margin: 0.2rem 0;
+}
+
+.editor-topbar .eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.75rem;
+  color: #7ec8ff;
+}
+
+.editor-topbar .stats {
+  color: #9adf88;
+  font-size: 0.85rem;
+}
+
+.editor-topbar .error {
+  color: #ffb6a3;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.file-input {
+  border: 1px solid #84beeb;
+  border-radius: 999px;
+  color: #0a2840;
+  background: #d0ecff;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.4rem 0.8rem;
+}
+
+.file-input input {
+  display: none;
+}
+
+.editor-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(420px, 1fr) minmax(220px, 280px);
+  gap: 1rem;
+}
+
+.panel {
+  border-radius: 1rem;
+  background: #ffffff;
+  border: 1px solid #cfdae6;
+  box-shadow: 0 10px 40px rgb(17 42 68 / 11%);
+  padding: 1rem;
+}
+
+.panel h2 {
+  margin: 0 0 0.8rem;
+  font-size: 1.2rem;
+}
+
+.panel h3 {
+  margin: 0.25rem 0 0.4rem;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #4f5b67;
+}
+
+.controls-panel {
+  overflow: auto;
+  max-height: calc(100vh - 160px);
+}
+
+.controls-panel section {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px dashed #cfdae6;
+}
+
+.controls-panel label {
+  display: block;
+  margin-bottom: 0.55rem;
+}
+
+.controls-panel label span {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.85rem;
+  color: #3b4a58;
+}
+
+.controls-panel input[type='range'],
+.controls-panel input[type='number'],
+.controls-panel select {
+  width: 100%;
+}
+
+.controls-panel button {
+  width: 100%;
+  margin-top: 0.4rem;
+}
+
+.palette-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.45rem;
+}
+
+.crop-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+
+.checkbox-row {
+  display: flex !important;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.checkbox-row span {
+  margin: 0 !important;
+}
+
+.viewport-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 640px;
+}
+
+.viewport-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+  color: #2d3d4f;
+}
+
+.viewport {
+  position: relative;
+  flex: 1;
+  min-height: 520px;
+  border-radius: 0.85rem;
+  background: repeating-linear-gradient(
+      45deg,
+      #1a1f25,
+      #1a1f25 12px,
+      #15191e 12px,
+      #15191e 24px
+    );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.viewport canvas {
+  max-width: 100%;
+  max-height: 100%;
+  width: 100%;
+  height: auto;
+}
+
+.history-panel ol {
+  margin: 0;
+  padding-left: 1.2rem;
+  max-height: calc(100vh - 220px);
+  overflow: auto;
+}
+
+.history-panel li {
+  margin-bottom: 0.4rem;
+  font-size: 0.9rem;
+}
+
+button {
+  border: 1px solid #b9c7d6;
+  border-radius: 0.6rem;
+  background: #f6f9fd;
+  color: #11263d;
+  padding: 0.48rem 0.75rem;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #dce8f5;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+button.primary {
+  border-color: #205ea3;
+  background: #2b76c6;
+  color: #f7fbff;
+}
+
+@media (max-width: 1200px) {
+  .editor-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .controls-panel,
+  .history-panel {
+    max-height: none;
+  }
+
+  .viewport-panel {
+    min-height: 420px;
+  }
+
+  .viewport {
+    min-height: 360px;
+  }
+}

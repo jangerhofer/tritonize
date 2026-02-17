@@ -39,6 +39,7 @@ const InitRequestSchema = Schema.Struct({
 const LoadAssetRequestSchema = Schema.Struct({
   kind: Schema.Literal('loadAsset'),
   assetId: AssetIdSchema,
+  blob: Schema.Unknown,
 })
 
 const BuildPreviewPyramidRequestSchema = Schema.Struct({
