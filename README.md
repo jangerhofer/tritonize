@@ -1,51 +1,38 @@
-# Tritonize Web
+# Tritonizer Editor
 
-This project brings [@minimaxir's](https://twitter.com/minimaxir) [Tritonize Python project](https://github.com/minimaxir/tritonize) to the web.
+A type-safe, local-first photo editor rebuilt around a worker-driven render engine.
 
-It turns any standard image...
+## What is implemented
 
-_e.g. the risqué but widely referenced [Lenna portrait.](https://www.cs.cmu.edu/~chuck/lennapg/lenna.shtml)_
+- Solid app shell with control panel, viewport, and linear undo/redo UI.
+- Non-destructive operation graph (DAG model with hidden branching).
+- Typed command/history system (`applyOperation`, `undo`, `redo`, `checkout`, `resetToRoot`).
+- Worker render pipeline with WebGL2-first Tritonizer backend and Canvas2D fallback.
+- Runtime boundary validation via `Schema` from `effect`.
+- IndexedDB persistence with schema-versioned migration helpers.
+- Export pipeline with capability detection and sequential export queue.
 
-<p align="center">
-  <img src="public/sampleImage.png">
-</p>
+## Architecture
 
-...into a number of sketch-like images.
+- `src/editor/types`: schemas, inferred domain types, decode helpers.
+- `src/editor/domain`: immutable graph model and command system.
+- `src/editor/engine`: protocol, orchestrator, worker client/entry, render backends.
+- `src/editor/storage`: IndexedDB adapter, migrations, repository.
+- `src/editor/export`: format capability detection and queue primitives.
+- `src/editor/ui`: editor interface and interaction wiring.
 
-<p align="center">
-  <img src="public/tritonize_collage.png">
-</p>
-
-## Tech Stack
-
-- **React 18** with TypeScript for type-safe component development
-- **Vite** for lightning-fast development and builds
-- **Redux** for state management
-- **pnpm** for efficient package management
-- **HTML5 Canvas** for image manipulation - returns [Uint8ClampedArray](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8ClampedArray) representing each pixel. Image filters are applied by manipulating this array and painting back to canvas.
-
-## Development
+## Commands
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Start development server
-pnpm start
-
-# Build for production
-pnpm build
-
-# Preview production build
-pnpm preview
+bun install
+bun run dev
+bun run typecheck
+bun run test
+bun run build
 ```
 
-## To Do:
+## Notes
 
-- [x] Repeatedly load static image into DOM & Canvas (iterations depend on color permutations) and parse out image array.
-- [x] Apply tritonize filter to canvas contents.
-    - [x] Write result back into appropriate canvas.
-- [ ] Add adjustable blur radius to image manipulation. Current tri-tone filter leaves a lot of grains on the image. Blur will help smooth contrasting edges.
-- [ ] Color picker. Choose any (reasonable, given that page will render n! images) number of colors.
-- [ ] Image drag & drop. Drop an image into the page and the page will take other settings (blur radius, possibly blur iterations -- one argument to the blur filter, and colors) and create display of all possible permutations!
-- [ ] _Investigate [FabricJS?](fabricjs.com)_
+- Persistence is local browser IndexedDB only.
+- Branches are preserved in the model but not yet surfaced as a visual tree.
+- AVIF/TIFF export support is capability-based and browser-dependent.
