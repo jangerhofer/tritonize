@@ -38,6 +38,7 @@
     "src/App.tsx",
     "src/editor/**/*.ts",
     "src/editor/**/*.tsx",
+    "src/perf/**/*.ts",
     "vite.config.ts",
     "vitest.config.ts"
   ]

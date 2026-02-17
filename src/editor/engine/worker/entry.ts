@@ -97,18 +97,21 @@ function choosePreviewSource(
   }
 
   const targetLongEdge = Math.max(targetWidth, targetHeight)
+  let candidate = levels[levels.length - 1]
+  if (!candidate) {
+    return ensureAsset(assetId)
+  }
 
   for (const level of levels) {
     if (Math.max(level.width, level.height) >= targetLongEdge) {
-      return level
+      candidate = level
+      continue
     }
+
+    break
   }
 
-  const last = levels[levels.length - 1]
-  if (!last) {
-    return ensureAsset(assetId)
-  }
-  return last
+  return candidate
 }
 
 function operationPathFromRequest(request: {

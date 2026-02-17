@@ -189,10 +189,15 @@ export class EditorEngineClient {
   }
 
   async init(maxTextureSizeHint?: number): Promise<void> {
-    await this.sendReadyRequest({
+    const payload: { kind: 'init'; maxTextureSizeHint?: number } = {
       kind: 'init',
-      maxTextureSizeHint,
-    })
+    }
+
+    if (maxTextureSizeHint !== undefined) {
+      payload.maxTextureSizeHint = maxTextureSizeHint
+    }
+
+    await this.sendReadyRequest(payload)
   }
 
   async loadAsset(assetId: AssetId, blob: Blob): Promise<void> {
