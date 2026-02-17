@@ -9,8 +9,8 @@
     "build": "bunx --bun vite build",
     "preview": "bunx --bun vite preview",
     "typecheck": "bunx --bun tsc --noEmit",
-    "test": "bunx --bun vitest run",
-    "test:watch": "bunx --bun vitest"
+    "test": "node ./node_modules/vitest/vitest.mjs run",
+    "test:watch": "node ./node_modules/vitest/vitest.mjs"
   },
   "dependencies": {
     "effect": "^3.19.18",
