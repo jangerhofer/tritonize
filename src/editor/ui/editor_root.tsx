@@ -246,9 +246,6 @@ export const EditorRoot: Component = () => {
   const [exportStats, setExportStats] = createSignal('')
   const [permutationCards, setPermutationCards] =
     createSignal<readonly Permutation[]>([])
-  const [visiblePermutationCards, setVisiblePermutationCards] = createSignal<
-    ReadonlySet<string>
-  >(new Set())
   const [capabilities, setCapabilities] =
     createSignal<ExportCapabilities>(DEFAULT_EXPORT_CAPABILITIES)
   const [exportFormat, setExportFormat] =
@@ -259,9 +256,6 @@ export const EditorRoot: Component = () => {
 
   let viewportRef: HTMLDivElement | undefined
   let canvasRef: HTMLCanvasElement | undefined
-  let permutationGridRef: HTMLDivElement | undefined
-  let permutationObserver: IntersectionObserver | null = null
-  const permutationCardElements = new Map<string, HTMLButtonElement>()
   let previewDebounceTimer: number | undefined
   let permutationDebounceTimer: number | undefined
   let latestPreviewRequest = 0
@@ -286,16 +280,6 @@ export const EditorRoot: Component = () => {
   ): void => {
     releasePermutationUrls(nextCards)
     setPermutationCards(nextCards)
-
-    const visibleIds = visiblePermutationCards()
-    if (visibleIds.size === 0) {
-      return
-    }
-
-    const availableIds = new Set(nextCards.map((card) => card.id))
-      setVisiblePermutationCards(
-        new Set([...visibleIds].filter((id) => availableIds.has(id)))
-    )
   }
 
   const drawPreviewBitmap = (bitmap: ImageBitmap): void => {
@@ -348,55 +332,6 @@ export const EditorRoot: Component = () => {
 
     return URL.createObjectURL(blob)
   }
-
-  const handlePermutationIntersection = (entries: IntersectionObserverEntry[]): void => {
-    for (const entry of entries) {
-      const cardId = entry.target.getAttribute('data-card-id')
-      if (!cardId) {
-        continue
-      }
-
-      setVisiblePermutationCards((current) => {
-        const next = new Set(current)
-        if (entry.isIntersecting) {
-          next.add(cardId)
-          return next
-        }
-
-        next.delete(cardId)
-        return next
-      })
-    }
-  }
-
-  const setPermutationCardRef =
-    (cardId: string) =>
-    (element: HTMLButtonElement | undefined): void => {
-      const existing = permutationCardElements.get(cardId)
-      if (existing) {
-        if (permutationObserver) {
-          permutationObserver.unobserve(existing)
-        }
-
-        permutationCardElements.delete(cardId)
-      }
-
-      if (!element) {
-        setVisiblePermutationCards((current) => {
-          const next = new Set(current)
-          next.delete(cardId)
-          return next
-        })
-        return
-      }
-
-      element.setAttribute('data-card-id', cardId)
-      permutationCardElements.set(cardId, element)
-
-      if (permutationObserver) {
-        permutationObserver.observe(element)
-      }
-    }
 
   const requestPreview = async (path: readonly PipelineNode[]): Promise<void> => {
     const currentAssetId = assetId()
@@ -456,8 +391,7 @@ export const EditorRoot: Component = () => {
   const requestPermutationPreviews = async (
     state: EditorGraphState,
     params: TritonizerParams,
-    baseColors: readonly RGB[],
-    visibleCardIds?: readonly string[]
+    baseColors: readonly RGB[]
   ): Promise<void> => {
     const currentAssetId = assetId()
     if (!currentAssetId) {
@@ -474,16 +408,10 @@ export const EditorRoot: Component = () => {
       return
     }
 
-    const shouldFilterVisible = visibleCardIds !== undefined
-    const visibleSet = shouldFilterVisible ? new Set(visibleCardIds) : undefined
     const requestId = ++latestPermutationRequest
     for (let i = 0; i < cards.length; i += 1) {
       const card = cards[i]
       if (!card) {
-        continue
-      }
-
-      if (shouldFilterVisible && visibleSet && !visibleSet.has(card.id)) {
         continue
       }
 
@@ -574,31 +502,13 @@ export const EditorRoot: Component = () => {
       setPermutationCardsWithCleanup(cards)
 
       permutationDebounceTimer = window.setTimeout(() => {
-        const visibleIds = visiblePermutationCards()
         void requestPermutationPreviews(
           state,
           baseParams,
-          basePalette,
-          visibleIds.size === 0 ? undefined : [...visibleIds]
+          basePalette
         )
       }, PERMUTATION_DEBOUNCE_MS)
     }, PREVIEW_DEBOUNCE_MS)
-  }
-
-  const scheduleVisiblePermutationRender = (): void => {
-    const visibleCards = visiblePermutationCards()
-    if (visibleCards.size === 0) {
-      return
-    }
-
-    const state = graphState()
-    if (!state) {
-      return
-    }
-
-    const baseParams = params()
-    const basePalette = normalizePaletteForRender(palette())
-    void requestPermutationPreviews(state, baseParams, basePalette, [...visibleCards])
   }
 
   const applyPalette = (colors: readonly RGB[]): void => {
@@ -728,7 +638,6 @@ export const EditorRoot: Component = () => {
       setStatus(`Loaded ${dimensions.width}x${dimensions.height}`)
       await orchestrator.loadAsset(nextAssetId, blob)
       releasePermutationUrls([])
-      setVisiblePermutationCards(new Set<string>())
       setPermutationCards([])
       scheduleLiveRender()
     } catch (loadError) {
@@ -748,25 +657,6 @@ export const EditorRoot: Component = () => {
         }
       }
     })
-
-    if (permutationGridRef) {
-      permutationObserver = new IntersectionObserver(handlePermutationIntersection, {
-        root: permutationGridRef,
-        rootMargin: '160px 0px',
-        threshold: 0.05,
-      })
-
-      for (const element of permutationCardElements.values()) {
-        permutationObserver.observe(element)
-      }
-
-      onCleanup(() => {
-        permutationObserver?.disconnect()
-        permutationObserver = null
-        permutationCardElements.clear()
-        setVisiblePermutationCards(new Set<string>())
-      })
-    }
 
     if (viewportRef) {
       const observer = new ResizeObserver((entries) => {
@@ -797,13 +687,6 @@ export const EditorRoot: Component = () => {
     void midpoint
     void strength
     scheduleLiveRender()
-    void scheduleVisiblePermutationRender()
-  })
-
-  createEffect(() => {
-    const visibleCards = visiblePermutationCards()
-    void visibleCards
-    scheduleVisiblePermutationRender()
   })
 
   onCleanup(() => {
@@ -1039,14 +922,10 @@ export const EditorRoot: Component = () => {
           >
             <div
               class="permutation-grid"
-              ref={(element) => {
-                permutationGridRef = element
-              }}
             >
               <For each={permutationCards()}>
                 {(card) => (
                   <button
-                    ref={setPermutationCardRef(card.id)}
                     classList={{
                       'perm-card': true,
                       selected: card.selected,
