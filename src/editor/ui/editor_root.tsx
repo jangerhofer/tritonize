@@ -990,11 +990,9 @@ export const EditorRoot: Component = () => {
 
         <aside class="panel permutations-panel">
           <h2>Permutations</h2>
-          <p class="helper">
-            {palette().length > 2
-              ? 'GPU-first: every order is a different map. We preview the first variants live.'
-              : 'Add one more color to generate permutations'}
-          </p>
+          <Show when={palette().length === 2}>
+            <p class="helper">Add one more color to generate permutations</p>
+          </Show>
           <Show
             when={palette().length >= 2}
             fallback={<p class="helper">Need at least 2 colors.</p>}
