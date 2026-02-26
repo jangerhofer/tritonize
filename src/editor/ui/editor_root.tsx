@@ -1038,19 +1038,114 @@ export const EditorRoot: Component = () => {
                 <p>or click to choose a file</p>
               </div>
             </Show>
-    <Show when={assetId()}>
-              <button
-                class="viewport-export-icon"
-                onClick={(event) => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  handleExportButtonToggle(event)
-                }}
-                title="Export options"
-                aria-label="Open export options"
-              >
-                <span aria-hidden="true">⤓</span>
-              </button>
+            <Show when={assetId()}>
+              <div class="export-menu-wrapper viewport-export-menu">
+                <button
+                  ref={exportButtonRef}
+                  class="viewport-export-icon"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    handleExportButtonToggle(event)
+                  }}
+                  title="Export options"
+                  aria-label="Open export options"
+                  aria-haspopup="true"
+                  aria-expanded={isExportMenuOpen()}
+                  disabled={isExportControlDisabled()}
+                >
+                  <span aria-hidden="true">⤓</span>
+                </button>
+
+                <Show when={isExportMenuOpen()}>
+                  <div
+                    class="export-tooltip"
+                    ref={exportMenuRef}
+                    role="menu"
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') {
+                        closeExportMenu()
+                      }
+                    }}
+                  >
+                    <label>
+                      <span>Format</span>
+                      <select
+                        value={exportFormat()}
+                        onChange={(event) =>
+                          setExportFormat(
+                            event.currentTarget.value as
+                              | 'jpeg'
+                              | 'png'
+                              | 'webp'
+                              | 'avif'
+                              | 'tiff'
+                          )
+                        }
+                      >
+                        <For each={['jpeg', 'png', 'webp', 'avif', 'tiff'] as const}>
+                          {(format) => (
+                            <option
+                              value={format}
+                              disabled={!capabilityForFormat(capabilities(), format)}
+                            >
+                              {format.toUpperCase()}
+                            </option>
+                          )}
+                        </For>
+                      </select>
+                    </label>
+
+                    <label>
+                      <span>Quality ({exportQuality().toFixed(2)})</span>
+                      <input
+                        type="range"
+                        min="0.1"
+                        max="1"
+                        step="0.01"
+                        value={exportQuality()}
+                        onInput={(event) => setExportQuality(Number(event.currentTarget.value))}
+                      />
+                    </label>
+
+                    <label>
+                      <span>Target long edge (px)</span>
+                      <input
+                        type="number"
+                        placeholder="auto"
+                        value={exportLongEdge() ?? ''}
+                        onInput={(event) => {
+                          const value = event.currentTarget.value
+                          setExportLongEdge(value === '' ? null : Number(value))
+                        }}
+                      />
+                    </label>
+
+                    <label class="export-all-option">
+                      <input
+                        type="checkbox"
+                        checked={exportAllPermutations()}
+                        disabled={isExportAllPermutationsDisabled()}
+                        onChange={(event) =>
+                          setExportAllPermutations(event.currentTarget.checked)
+                        }
+                      />
+                      <span>Export all permutations</span>
+                    </label>
+
+                    <button
+                      class="primary"
+                      onClick={() => {
+                        closeExportMenu()
+                        void requestExport()
+                      }}
+                      disabled={isExportControlDisabled()}
+                    >
+                      {exportAllPermutations() ? 'Export all' : 'Export'}
+                    </button>
+                  </div>
+                </Show>
+              </div>
             </Show>
             <Show when={isDragActive() && !assetId()}>
               <div class="viewport-overlay drag">
@@ -1203,110 +1298,6 @@ export const EditorRoot: Component = () => {
             </label>
           </section>
 
-          <section class="toolbar-group">
-            <h3>Export</h3>
-            <div class="export-menu-wrapper">
-              <button
-                ref={exportButtonRef}
-                class="primary"
-                onClick={handleExportButtonToggle}
-                aria-haspopup="true"
-                aria-expanded={isExportMenuOpen()}
-                disabled={isExportControlDisabled()}
-              >
-                {isExporting() ? 'Exporting…' : 'Export'}
-              </button>
-
-              <Show when={isExportMenuOpen()}>
-                <div
-                  class="export-tooltip"
-                  ref={exportMenuRef}
-                  role="menu"
-                  onKeyDown={(event) => {
-                    if (event.key === 'Escape') {
-                      closeExportMenu()
-                    }
-                  }}
-                >
-                  <label>
-                    <span>Format</span>
-                    <select
-                      value={exportFormat()}
-                      onChange={(event) =>
-                        setExportFormat(
-                          event.currentTarget.value as
-                            | 'jpeg'
-                            | 'png'
-                            | 'webp'
-                            | 'avif'
-                            | 'tiff'
-                        )
-                      }
-                    >
-                      <For each={['jpeg', 'png', 'webp', 'avif', 'tiff'] as const}>
-                        {(format) => (
-                          <option
-                            value={format}
-                            disabled={!capabilityForFormat(capabilities(), format)}
-                          >
-                            {format.toUpperCase()}
-                          </option>
-                        )}
-                      </For>
-                    </select>
-                  </label>
-
-                  <label>
-                    <span>Quality ({exportQuality().toFixed(2)})</span>
-                    <input
-                      type="range"
-                      min="0.1"
-                      max="1"
-                      step="0.01"
-                      value={exportQuality()}
-                      onInput={(event) => setExportQuality(Number(event.currentTarget.value))}
-                    />
-                  </label>
-
-                  <label>
-                    <span>Target long edge (px)</span>
-                    <input
-                      type="number"
-                      placeholder="auto"
-                      value={exportLongEdge() ?? ''}
-                      onInput={(event) => {
-                        const value = event.currentTarget.value
-                        setExportLongEdge(value === '' ? null : Number(value))
-                      }}
-                    />
-                  </label>
-
-                  <label class="export-all-option">
-                    <input
-                      type="checkbox"
-                      checked={exportAllPermutations()}
-                      disabled={isExportAllPermutationsDisabled()}
-                      onChange={(event) =>
-                        setExportAllPermutations(event.currentTarget.checked)
-                      }
-                    />
-                    <span>Export all permutations</span>
-                  </label>
-
-                  <button
-                    class="primary"
-                    onClick={() => {
-                      closeExportMenu()
-                      void requestExport()
-                    }}
-                    disabled={isExportControlDisabled()}
-                  >
-                    {exportAllPermutations() ? 'Export all' : 'Export'}
-                  </button>
-                </div>
-              </Show>
-            </div>
-          </section>
         </div>
       </footer>
     </main>
