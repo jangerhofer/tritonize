@@ -2,32 +2,22 @@ import {
   For,
   Show,
   createEffect,
-  createMemo,
   createSignal,
   onCleanup,
   onMount,
   type Component,
 } from 'solid-js'
-import {
-  applyOperation,
-  createEditorGraphState,
-  getNodePath,
-  redo,
-  resetToRoot,
-  undo,
-  type EditorGraphState,
-} from '@/editor/domain'
-import { createAssetId } from '@/editor/domain/ids'
+import { createEditorGraphState, type EditorGraphState } from '@/editor/domain'
+import { createAssetId, createNodeId } from '@/editor/domain/ids'
 import { EditorRenderOrchestrator } from '@/editor/engine'
 import {
   capabilityForFormat,
   detectExportCapabilities,
   type ExportCapabilities,
 } from '@/editor/export'
-import { EditorRepository } from '@/editor/storage/repository'
-import { decodeUnknownEither, decodeUnknownSync } from '@/editor/types/schema_tools'
-import { DocIdSchema, ExportOptionsSchema } from '@/editor/types/schemas'
-import type { Operation, RGB } from '@/editor/types/domain'
+import { decodeUnknownSync } from '@/editor/types/schema_tools'
+import { ExportOptionsSchema } from '@/editor/types/schemas'
+import type { PipelineNode, RGB } from '@/editor/types/domain'
 import './editor_root.css'
 
 const DEFAULT_EXPORT_CAPABILITIES: ExportCapabilities = {
@@ -38,54 +28,37 @@ const DEFAULT_EXPORT_CAPABILITIES: ExportCapabilities = {
   tiff: false,
 }
 
-interface AdjustmentValues {
-  readonly exposure: number
-  readonly contrast: number
-  readonly saturation: number
-  readonly vibrance: number
-  readonly temperature: number
-  readonly tint: number
-  readonly blur: number
-  readonly rotate: 0 | 90 | 180 | 270
-  readonly cropX: number
-  readonly cropY: number
-  readonly cropWidth: number
-  readonly cropHeight: number
-  readonly cropEnabled: boolean
+const MAX_COLORS = 8
+const MAX_PERMUTATION_INPUT = 6
+const PERMUTATION_CARD_LIMIT = 9
+const PERMUTATION_VIEWPORT = 200
+const PREVIEW_DEBOUNCE_MS = 12
+const PERMUTATION_DEBOUNCE_MS = 95
+
+interface Permutation {
+  readonly id: string
+  readonly colors: readonly RGB[]
+  readonly label: string
+  readonly url: string | null
+  readonly loading: boolean
+  readonly selected: boolean
+}
+
+interface SourceDimensions {
+  readonly width: number
+  readonly height: number
+}
+
+interface TritonizerParams {
   readonly sigmoidMidpoint: number
   readonly sigmoidStrength: number
 }
 
-const initialAdjustmentValues: AdjustmentValues = {
-  exposure: 0,
-  contrast: 0,
-  saturation: 0,
-  vibrance: 0,
-  temperature: 0,
-  tint: 0,
-  blur: 0,
-  rotate: 0,
-  cropX: 0,
-  cropY: 0,
-  cropWidth: 1024,
-  cropHeight: 768,
-  cropEnabled: false,
-  sigmoidMidpoint: 0.5,
-  sigmoidStrength: 1,
-}
-
-const OP_LABELS: Record<Operation['type'], string> = {
-  tritonizer: 'Tritonizer',
-  exposure: 'Exposure',
-  contrast: 'Contrast',
-  saturation: 'Saturation',
-  vibrance: 'Vibrance',
-  temperature: 'Temperature',
-  tint: 'Tint',
-  blur: 'Blur',
-  crop: 'Crop',
-  rotate: 'Rotate',
-}
+const initialPalette: readonly RGB[] = [
+  [205, 34, 45],
+  [10, 12, 16],
+  [255, 255, 255],
+]
 
 function hexToRgb(hexColor: string): RGB {
   const normalized = hexColor.replace('#', '')
@@ -106,7 +79,11 @@ function rgbToHex(color: RGB): string {
     .join('')}`
 }
 
-function readImageDimensions(blob: Blob): Promise<{ width: number; height: number }> {
+function makePermutationLabel(colors: readonly RGB[]): string {
+  return colors.map(rgbToHex).join(' | ')
+}
+
+function readImageDimensions(blob: Blob): Promise<SourceDimensions> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(blob)
     const image = new Image()
@@ -127,26 +104,148 @@ function readImageDimensions(blob: Blob): Promise<{ width: number; height: numbe
   })
 }
 
+function createTritonizerPath(
+  state: EditorGraphState,
+  params: TritonizerParams,
+  colors: readonly RGB[]
+): readonly PipelineNode[] {
+  const rootNode = state.nodes.get(state.document.rootNodeId)
+  if (!rootNode) {
+    return []
+  }
+
+  return [
+    rootNode,
+    {
+      id: createNodeId(),
+      parentId: rootNode.id,
+      op: {
+        type: 'tritonizer',
+        params: {
+          colors,
+          sigmoidMidpoint: params.sigmoidMidpoint,
+          sigmoidStrength: params.sigmoidStrength,
+        },
+      },
+      createdAt: Date.now(),
+    },
+  ]
+}
+
+function generatePermutations(
+  values: readonly RGB[],
+  limit: number
+): readonly readonly RGB[][] {
+  if (values.length <= 1) {
+    return [values]
+  }
+
+  const output: RGB[][] = []
+  const used: boolean[] = new Array(values.length).fill(false)
+  const active: RGB[] = []
+
+  const backtrack = (): void => {
+    if (output.length >= limit) {
+      return
+    }
+
+    if (active.length === values.length) {
+      output.push([...active])
+      return
+    }
+
+    for (let index = 0; index < values.length; index += 1) {
+      if (output.length >= limit) {
+        return
+      }
+
+      if (used[index]) {
+        continue
+      }
+
+      const color = values[index]
+      if (!color) {
+        continue
+      }
+
+      used[index] = true
+      active.push(color)
+      backtrack()
+      active.pop()
+      used[index] = false
+    }
+  }
+
+  backtrack()
+  return output
+}
+
+function buildPermutationCards(
+  colors: readonly RGB[],
+  selectedColors: readonly RGB[]
+): readonly Permutation[] {
+  if (colors.length < 2) {
+    return []
+  }
+
+  const variableCount = Math.min(colors.length, MAX_PERMUTATION_INPUT)
+  const head = colors.slice(0, variableCount)
+  const fixedTail = colors.slice(variableCount)
+  const permutations = generatePermutations(head, PERMUTATION_CARD_LIMIT)
+
+  return permutations.map((entry, index) => {
+    const fullPalette = [...entry, ...fixedTail]
+    const selected = fullPalette.length === selectedColors.length &&
+      fullPalette.every((color, position) => {
+        const selectedColor = selectedColors[position]
+        if (!selectedColor) {
+          return false
+        }
+
+        return (
+          selectedColor[0] === color[0] &&
+          selectedColor[1] === color[1] &&
+          selectedColor[2] === color[2]
+        )
+      })
+
+    return {
+      id: `perm-${index}`,
+      colors: fullPalette,
+      label: makePermutationLabel(fullPalette),
+      loading: true,
+      url: null,
+      selected,
+    }
+  })
+}
+
+function normalizePaletteForRender(colors: readonly RGB[]): readonly RGB[] {
+  const normalized = [...colors]
+  return normalized.slice(0, MAX_COLORS)
+}
+
 export const EditorRoot: Component = () => {
-  const repository = new EditorRepository()
   const orchestrator = new EditorRenderOrchestrator()
 
   const [graphState, setGraphState] = createSignal<EditorGraphState | null>(null)
   const [assetId, setAssetId] = createSignal<ReturnType<typeof createAssetId> | null>(
     null
   )
-  const [status, setStatus] = createSignal('Load an image to start editing')
+  const [status, setStatus] = createSignal('Load an image to begin')
   const [error, setError] = createSignal<string | null>(null)
   const [isRendering, setIsRendering] = createSignal(false)
   const [isExporting, setIsExporting] = createSignal(false)
-  const [previewStats, setPreviewStats] = createSignal<string>('')
-  const [exportStats, setExportStats] = createSignal<string>('')
-  const [adjustments, setAdjustments] = createSignal(initialAdjustmentValues)
-  const [palette, setPalette] = createSignal<readonly RGB[]>([
-    [198, 12, 48],
-    [255, 255, 255],
-    [0, 0, 0],
-  ])
+  const [sourceDimensions, setSourceDimensions] = createSignal<SourceDimensions | null>(
+    null
+  )
+  const [palette, setPalette] = createSignal<readonly RGB[]>(initialPalette)
+  const [sigmoidMidpoint, setSigmoidMidpoint] = createSignal(0.5)
+  const [sigmoidStrength, setSigmoidStrength] = createSignal(1)
+  const [previewStats, setPreviewStats] = createSignal('')
+  const [exportStats, setExportStats] = createSignal('')
+  const [permutationCards, setPermutationCards] =
+    createSignal<readonly Permutation[]>([])
   const [capabilities, setCapabilities] =
     createSignal<ExportCapabilities>(DEFAULT_EXPORT_CAPABILITIES)
   const [exportFormat, setExportFormat] =
@@ -155,34 +254,25 @@ export const EditorRoot: Component = () => {
   const [exportLongEdge, setExportLongEdge] = createSignal<number | null>(null)
   const [viewportSize, setViewportSize] = createSignal({ width: 960, height: 640 })
 
-  const nodePath = createMemo(() => {
-    const state = graphState()
-    if (!state) {
-      return [] as const
-    }
-
-    return getNodePath(state)
-  })
-
   let viewportRef: HTMLDivElement | undefined
   let canvasRef: HTMLCanvasElement | undefined
-  let persistTimer: number | undefined
-  let latestRenderRequest = 0
+  let previewDebounceTimer: number | undefined
+  let permutationDebounceTimer: number | undefined
+  let latestPreviewRequest = 0
+  let latestPermutationRequest = 0
 
-  const schedulePersist = (nextState: EditorGraphState): void => {
-    if (persistTimer !== undefined) {
-      window.clearTimeout(persistTimer)
+  const params = (): TritonizerParams => ({
+    sigmoidMidpoint: sigmoidMidpoint(),
+    sigmoidStrength: sigmoidStrength(),
+  })
+
+  const releasePermutationUrls = (nextCards: readonly Permutation[]): void => {
+    for (const card of permutationCards()) {
+      const nextCard = nextCards.find((entry) => entry.id === card.id)
+      if (!nextCard && card.url) {
+        URL.revokeObjectURL(card.url)
+      }
     }
-
-    persistTimer = window.setTimeout(() => {
-      void repository.saveGraphState(nextState)
-    }, 500)
-  }
-
-  const commitGraphState = (nextState: EditorGraphState): void => {
-    setGraphState(nextState)
-    localStorage.setItem('editor:lastDocId', nextState.document.id)
-    schedulePersist(nextState)
   }
 
   const drawPreviewBitmap = (bitmap: ImageBitmap): void => {
@@ -204,9 +294,46 @@ export const EditorRoot: Component = () => {
     bitmap.close()
   }
 
-  const requestPreview = async (nextState: EditorGraphState): Promise<void> => {
+  const requestBitmapToDataUrl = async (
+    bitmap: ImageBitmap,
+    width: number,
+    height: number
+  ): Promise<string> => {
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+
+    const context = canvas.getContext('2d')
+    if (!context) {
+      bitmap.close()
+      throw new Error('Unable to draw preview output')
+    }
+
+    context.drawImage(bitmap, 0, 0, width, height)
+    bitmap.close()
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((nextBlob) => {
+        if (!nextBlob) {
+          reject(new Error('Unable to encode preview output'))
+          return
+        }
+
+        resolve(nextBlob)
+      }, 'image/png')
+    })
+
+    return URL.createObjectURL(blob)
+  }
+
+  const requestPreview = async (path: readonly PipelineNode[]): Promise<void> => {
     const currentAssetId = assetId()
-    if (!currentAssetId) {
+    if (!currentAssetId || path.length === 0) {
+      return
+    }
+
+    const state = graphState()
+    if (!state) {
       return
     }
 
@@ -215,13 +342,13 @@ export const EditorRoot: Component = () => {
       return
     }
 
-    const requestId = ++latestRenderRequest
+    const requestId = ++latestPreviewRequest
     setIsRendering(true)
 
     try {
       const result = await orchestrator.renderPreview({
         assetId: currentAssetId,
-        nodePath: getNodePath(nextState),
+        nodePath: path,
         width,
         height,
         zoom: 1,
@@ -229,7 +356,7 @@ export const EditorRoot: Component = () => {
         panY: 0,
       })
 
-      if (requestId !== latestRenderRequest) {
+      if (requestId !== latestPreviewRequest) {
         result.bitmap.close()
         return
       }
@@ -242,119 +369,189 @@ export const EditorRoot: Component = () => {
       const message =
         renderError instanceof Error
           ? renderError.message
-          : 'Preview rendering failed unexpectedly'
+          : 'Preview render failed unexpectedly'
 
-      if (!message.toLowerCase().includes('cancelled')) {
+      if (!message.toLowerCase().includes('cancel')) {
         setError(message)
       }
     } finally {
-      if (requestId === latestRenderRequest) {
+      if (requestId === latestPreviewRequest) {
         setIsRendering(false)
       }
     }
   }
 
-  const applyAndRender = (operation: Operation): void => {
-    const state = graphState()
-    if (!state) {
+  const requestPermutationPreviews = async (
+    state: EditorGraphState,
+    params: TritonizerParams,
+    baseColors: readonly RGB[]
+  ): Promise<void> => {
+    const currentAssetId = assetId()
+    if (!currentAssetId) {
       return
     }
 
-    const nextState = applyOperation(state, operation)
-    commitGraphState(nextState)
-    void requestPreview(nextState)
-  }
-
-  const handleUndo = (): void => {
-    const state = graphState()
-    if (!state) {
+    if (baseColors.length < 2) {
+      setPermutationCards([])
       return
     }
 
-    const nextState = undo(state)
-    commitGraphState(nextState)
-    void requestPreview(nextState)
+    const cards = buildPermutationCards(
+      baseColors,
+      params.sigmoidMidpoint,
+      params.sigmoidStrength,
+      palette()
+    )
+    releasePermutationUrls(cards)
+    setPermutationCards(cards)
+
+    const requestId = ++latestPermutationRequest
+    for (let i = 0; i < cards.length; i += 1) {
+      const card = cards[i]
+      if (!card) {
+        continue
+      }
+
+      try {
+        const result = await orchestrator.renderPreview({
+          assetId: currentAssetId,
+          nodePath: createTritonizerPath(state, params, card.colors),
+          width: PERMUTATION_VIEWPORT,
+          height: PERMUTATION_VIEWPORT,
+          zoom: 1,
+          panX: 0,
+          panY: 0,
+        })
+
+        if (requestId !== latestPermutationRequest) {
+          result.bitmap.close()
+          return
+        }
+
+        const url = await requestBitmapToDataUrl(
+          result.bitmap,
+          PERMUTATION_VIEWPORT,
+          PERMUTATION_VIEWPORT
+        )
+
+        setPermutationCards((previous) => {
+          const next = [...previous]
+          const existing = next[i]
+          if (!existing) {
+            return previous
+          }
+
+          if (existing.url) {
+            URL.revokeObjectURL(existing.url)
+          }
+
+          next[i] = {
+            ...existing,
+            loading: false,
+            url,
+          }
+          return next
+        })
+      } catch {
+        if (requestId !== latestPermutationRequest) {
+          return
+        }
+
+        setPermutationCards((previous) => {
+          const next = [...previous]
+          const existing = next[i]
+          if (!existing) {
+            return previous
+          }
+
+          next[i] = {
+            ...existing,
+            loading: false,
+          }
+          return next
+        })
+      }
+    }
   }
 
-  const handleRedo = (): void => {
-    const state = graphState()
-    if (!state) {
+  const scheduleLiveRender = (): void => {
+    if (previewDebounceTimer !== undefined) {
+      window.clearTimeout(previewDebounceTimer)
+    }
+    if (permutationDebounceTimer !== undefined) {
+      window.clearTimeout(permutationDebounceTimer)
+    }
+
+    previewDebounceTimer = window.setTimeout(() => {
+      const state = graphState()
+      if (!state) {
+        return
+      }
+
+      const baseParams = params()
+      const basePalette = normalizePaletteForRender(palette())
+      void requestPreview(createTritonizerPath(state, baseParams, basePalette))
+      setPermutationCards(buildPermutationCards(basePalette, palette()))
+
+      permutationDebounceTimer = window.setTimeout(() => {
+        void requestPermutationPreviews(state, baseParams, basePalette)
+      }, PERMUTATION_DEBOUNCE_MS)
+    }, PREVIEW_DEBOUNCE_MS)
+  }
+
+  const applyPalette = (colors: readonly RGB[]): void => {
+    setPalette([...colors])
+    scheduleLiveRender()
+  }
+
+  const handleColorChange = (index: number, event: Event): void => {
+    const next = [...palette()]
+    const nextColor = hexToRgb((event.currentTarget as HTMLInputElement).value)
+    next[index] = nextColor
+    setPalette(next)
+    scheduleLiveRender()
+  }
+
+  const shiftColor = (from: number, to: number): void => {
+    const next = [...palette()]
+    if (to < 0 || to >= next.length || from < 0 || from >= next.length) {
       return
     }
 
-    const nextState = redo(state)
-    commitGraphState(nextState)
-    void requestPreview(nextState)
-  }
-
-  const handleReset = (): void => {
-    const state = graphState()
-    if (!state) {
+    const value = next[from]
+    if (!value) {
       return
     }
 
-    const nextState = resetToRoot(state)
-    commitGraphState(nextState)
-    void requestPreview(nextState)
+    next[from] = next[to]
+    next[to] = value
+    setPalette(next)
+    scheduleLiveRender()
   }
 
-  const handleAdjustmentCommit = (
-    type: Extract<
-      Operation['type'],
-      'exposure' | 'contrast' | 'saturation' | 'vibrance' | 'temperature' | 'tint'
-    >,
-    value: number
-  ): void => {
-    applyAndRender({
-      type,
-      params: { value },
-    })
-  }
-
-  const handleBlurCommit = (radius: number): void => {
-    applyAndRender({
-      type: 'blur',
-      params: { radius },
-    })
-  }
-
-  const handleRotateCommit = (degrees: 0 | 90 | 180 | 270): void => {
-    applyAndRender({
-      type: 'rotate',
-      params: { degrees },
-    })
-  }
-
-  const handleApplyCrop = (): void => {
-    const values = adjustments()
-    if (!values.cropEnabled) {
+  const addColor = (): void => {
+    if (palette().length >= MAX_COLORS) {
       return
     }
 
-    applyAndRender({
-      type: 'crop',
-      params: {
-        x: values.cropX,
-        y: values.cropY,
-        width: values.cropWidth,
-        height: values.cropHeight,
-      },
-    })
+    const next = [...palette()]
+    next.push([0, 0, 0])
+    setPalette(next)
+    scheduleLiveRender()
   }
 
-  const handleApplyTritonizer = (): void => {
-    const values = adjustments()
-    applyAndRender({
-      type: 'tritonizer',
-      params: {
-        colors: palette(),
-        sigmoidMidpoint: values.sigmoidMidpoint,
-        sigmoidStrength: values.sigmoidStrength,
-      },
-    })
+  const removeColor = (index: number): void => {
+    if (palette().length <= 2) {
+      return
+    }
+
+    const next = [...palette()]
+    next.splice(index, 1)
+    setPalette(next)
+    scheduleLiveRender()
   }
 
-  const handleExport = async (): Promise<void> => {
+  const requestExport = async (): Promise<void> => {
     const state = graphState()
     const currentAssetId = assetId()
     if (!state || !currentAssetId) {
@@ -369,28 +566,27 @@ export const EditorRoot: Component = () => {
     }
 
     setIsExporting(true)
+    setError(null)
 
     try {
-      const values = {
+      const options = decodeUnknownSync(ExportOptionsSchema, {
         format,
         colorProfile: 'srgb',
         metadataPolicy: 'preserve-when-possible',
         quality: format === 'png' || format === 'tiff' ? undefined : exportQuality(),
         targetLongEdge: exportLongEdge() ?? undefined,
-      }
-
-      const options = decodeUnknownSync(ExportOptionsSchema, values)
+      })
 
       const result = await orchestrator.queueExport({
         assetId: currentAssetId,
-        nodePath: getNodePath(state),
+        nodePath: createTritonizerPath(state, params(), normalizePaletteForRender(palette())),
         exportOptions: options,
       })
 
       const url = URL.createObjectURL(result.blob)
       const anchor = document.createElement('a')
       anchor.href = url
-      anchor.download = `tritonizer-export.${format === 'jpeg' ? 'jpg' : format}`
+      anchor.download = `tritonizer-${format === 'jpeg' ? 'jpg' : format}`
       anchor.click()
       URL.revokeObjectURL(url)
 
@@ -399,9 +595,7 @@ export const EditorRoot: Component = () => {
       )
     } catch (exportError) {
       setError(
-        exportError instanceof Error
-          ? exportError.message
-          : 'Export failed unexpectedly'
+        exportError instanceof Error ? exportError.message : 'Export failed unexpectedly'
       )
     } finally {
       setIsExporting(false)
@@ -421,91 +615,44 @@ export const EditorRoot: Component = () => {
         height: dimensions.height,
       })
 
+      setSourceDimensions(dimensions)
       setAssetId(nextAssetId)
-      commitGraphState(nextState)
-
+      setGraphState(nextState)
+      setStatus(`Loaded ${dimensions.width}x${dimensions.height}`)
       await orchestrator.loadAsset(nextAssetId, blob)
-      await repository.saveAsset(nextAssetId, blob)
-      await repository.saveGraphState(nextState)
-      setStatus('Image loaded. Add operations from the control panel.')
-
-      setAdjustments((previous) => ({
-        ...previous,
-        cropWidth: dimensions.width,
-        cropHeight: dimensions.height,
-      }))
-
-      void requestPreview(nextState)
+      await orchestrator.buildPreviewPyramid(nextAssetId)
+      releasePermutationUrls([])
+      setPermutationCards([])
+      scheduleLiveRender()
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Unable to load file')
     }
   }
 
-  const maybeRestoreLastDocument = async (): Promise<void> => {
-    const rawDocId = localStorage.getItem('editor:lastDocId')
-    if (!rawDocId) {
-      return
-    }
-
-    const parsed = decodeUnknownEither(DocIdSchema, rawDocId)
-    if (!parsed.ok) {
-      return
-    }
-
-    const loaded = await repository.loadGraphState(parsed.value)
-    if (!loaded) {
-      return
-    }
-
-    const blob = await repository.loadAsset(loaded.state.document.sourceAssetId)
-    if (!blob) {
-      return
-    }
-
-    setGraphState(loaded.state)
-    setAssetId(loaded.state.document.sourceAssetId)
-
-    await orchestrator.loadAsset(loaded.state.document.sourceAssetId, blob)
-    void requestPreview(loaded.state)
-
-    if (loaded.recovered) {
-      setStatus('Recovered project from local storage with cleanup')
-      if (loaded.recoveryReason) {
-        setError(loaded.recoveryReason)
-      }
-    } else {
-      setStatus('Restored last local project')
-    }
-  }
-
   onMount(() => {
     void orchestrator.init()
-
-    void detectExportCapabilities().then((nextCaps) => {
-      setCapabilities(nextCaps)
-      if (!capabilityForFormat(nextCaps, exportFormat())) {
-        if (nextCaps.png) {
+    void detectExportCapabilities().then((nextCapabilities) => {
+      setCapabilities(nextCapabilities)
+      if (!capabilityForFormat(nextCapabilities, exportFormat())) {
+        if (nextCapabilities.png) {
           setExportFormat('png')
-        } else if (nextCaps.jpeg) {
+        } else if (nextCapabilities.jpeg) {
           setExportFormat('jpeg')
         }
       }
     })
 
-    void maybeRestoreLastDocument()
-
     if (viewportRef) {
       const observer = new ResizeObserver((entries) => {
-        const first = entries[0]
-        if (!first) {
+        const size = entries[0]
+        if (!size) {
           return
         }
-
-        const width = Math.max(320, Math.floor(first.contentRect.width))
-        const height = Math.max(240, Math.floor(first.contentRect.height))
-        setViewportSize({ width, height })
+        setViewportSize({
+          width: Math.max(320, Math.floor(size.contentRect.width)),
+          height: Math.max(240, Math.floor(size.contentRect.height)),
+        })
       })
-
       observer.observe(viewportRef)
       onCleanup(() => observer.disconnect())
     }
@@ -513,30 +660,40 @@ export const EditorRoot: Component = () => {
 
   createEffect(() => {
     const state = graphState()
-    const currentAssetId = assetId()
-    const size = viewportSize()
+    const loadedAssetId = assetId()
+    const colorState = palette()
+    const midpoint = sigmoidMidpoint()
+    const strength = sigmoidStrength()
 
-    if (!state || !currentAssetId || size.width <= 0 || size.height <= 0) {
-      return
-    }
-
-    void requestPreview(state)
+    void state
+    void loadedAssetId
+    void colorState
+    void midpoint
+    void strength
+    scheduleLiveRender()
   })
 
   onCleanup(() => {
     orchestrator.dispose()
-    if (persistTimer !== undefined) {
-      window.clearTimeout(persistTimer)
+    if (previewDebounceTimer !== undefined) {
+      window.clearTimeout(previewDebounceTimer)
     }
+    if (permutationDebounceTimer !== undefined) {
+      window.clearTimeout(permutationDebounceTimer)
+    }
+    releasePermutationUrls([])
   })
 
   return (
     <main class="editor-shell">
       <header class="editor-topbar">
         <div>
-          <p class="eyebrow">Local-first / Worker-driven</p>
-          <h1>Tritonizer Editor</h1>
+          <p class="eyebrow">Tritonizer</p>
+          <h1>Obsidian Tritonizer</h1>
           <p>{status()}</p>
+          <Show when={sourceDimensions()}>
+            {(dimensions) => <p class="meta">{dimensions().width}x{dimensions().height}</p>}
+          </Show>
           <Show when={previewStats()}>
             <p class="stats">Preview: {previewStats()}</p>
           </Show>
@@ -550,7 +707,7 @@ export const EditorRoot: Component = () => {
 
         <div class="topbar-actions">
           <label class="file-input">
-            <span>Open Image</span>
+            Open image
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp,image/avif,image/tiff,image/tif"
@@ -559,249 +716,106 @@ export const EditorRoot: Component = () => {
                 if (!files || files.length === 0) {
                   return
                 }
-
                 const nextFile = files[0]
                 if (!nextFile) {
                   return
                 }
-
                 void handleFileLoad(nextFile)
               }}
             />
           </label>
-
-          <button onClick={handleUndo} disabled={!graphState()}>
-            Undo
-          </button>
-          <button onClick={handleRedo} disabled={!graphState()}>
-            Redo
-          </button>
-          <button onClick={handleReset} disabled={!graphState()}>
-            Reset
-          </button>
         </div>
       </header>
 
       <div class="editor-layout">
         <aside class="panel controls-panel">
-          <h2>Controls</h2>
+          <h2>Tritonizer Controls</h2>
 
           <section>
-            <h3>Tritonizer</h3>
+            <h3>Palette</h3>
             <div class="palette-grid">
               <For each={palette()}>
                 {(color, index) => (
-                  <label>
-                    <span>Color {index() + 1}</span>
-                    <input
-                      type="color"
-                      value={rgbToHex(color)}
-                      onInput={(event) => {
-                        const next = [...palette()]
-                        next[index()] = hexToRgb(event.currentTarget.value)
-                        setPalette(next)
-                      }}
-                    />
-                  </label>
+                  <div class="palette-entry">
+                    <label>
+                      <span>Color {index() + 1}</span>
+                      <input
+                        type="color"
+                        value={rgbToHex(color)}
+                        onInput={(event) => handleColorChange(index(), event)}
+                      />
+                    </label>
+                    <div class="palette-actions">
+                      <button
+                        class="inline"
+                        onClick={() => shiftColor(index(), index() - 1)}
+                        disabled={index() === 0}
+                        title="Move Left"
+                      >
+                        ←
+                      </button>
+                      <button
+                        class="inline"
+                        onClick={() => shiftColor(index(), index() + 1)}
+                        disabled={index() === palette().length - 1}
+                        title="Move Right"
+                      >
+                        →
+                      </button>
+                      <button
+                        class="inline danger"
+                        onClick={() => removeColor(index())}
+                        disabled={palette().length <= 2}
+                        title="Remove"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
                 )}
               </For>
             </div>
 
-            <label>
-              <span>Sigmoid midpoint ({adjustments().sigmoidMidpoint.toFixed(2)})</span>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={adjustments().sigmoidMidpoint}
-                onInput={(event) =>
-                  setAdjustments((previous) => ({
-                    ...previous,
-                    sigmoidMidpoint: Number(event.currentTarget.value),
-                  }))
-                }
-              />
-            </label>
-
-            <label>
-              <span>Sigmoid strength ({adjustments().sigmoidStrength.toFixed(2)})</span>
-              <input
-                type="range"
-                min="0.05"
-                max="4"
-                step="0.05"
-                value={adjustments().sigmoidStrength}
-                onInput={(event) =>
-                  setAdjustments((previous) => ({
-                    ...previous,
-                    sigmoidStrength: Number(event.currentTarget.value),
-                  }))
-                }
-              />
-            </label>
-
-            <button onClick={handleApplyTritonizer} disabled={!graphState()}>
-              Apply Tritonizer
-            </button>
-          </section>
-
-          <section>
-            <h3>Global Adjustments</h3>
-            <For
-              each={[
-                ['exposure', 'Exposure', -1, 1, 0.01],
-                ['contrast', 'Contrast', -1, 1, 0.01],
-                ['saturation', 'Saturation', -1, 1, 0.01],
-                ['vibrance', 'Vibrance', -1, 1, 0.01],
-                ['temperature', 'Temperature', -1, 1, 0.01],
-                ['tint', 'Tint', -1, 1, 0.01],
-              ] as const}
-            >
-              {(config) => (
-                <label>
-                  <span>
-                    {config[1]} ({adjustments()[config[0]].toFixed(2)})
-                  </span>
-                  <input
-                    type="range"
-                    min={config[2]}
-                    max={config[3]}
-                    step={config[4]}
-                    value={adjustments()[config[0]]}
-                    onInput={(event) =>
-                      setAdjustments((previous) => ({
-                        ...previous,
-                        [config[0]]: Number(event.currentTarget.value),
-                      }))
-                    }
-                    onChange={() =>
-                      handleAdjustmentCommit(config[0], adjustments()[config[0]])
-                    }
-                  />
-                </label>
-              )}
-            </For>
-
-            <label>
-              <span>Blur ({adjustments().blur.toFixed(2)})</span>
-              <input
-                type="range"
-                min="0"
-                max="8"
-                step="0.1"
-                value={adjustments().blur}
-                onInput={(event) =>
-                  setAdjustments((previous) => ({
-                    ...previous,
-                    blur: Number(event.currentTarget.value),
-                  }))
-                }
-                onChange={() => handleBlurCommit(adjustments().blur)}
-              />
-            </label>
-          </section>
-
-          <section>
-            <h3>Geometry</h3>
-            <label>
-              <span>Rotate</span>
-              <select
-                value={adjustments().rotate}
-                onChange={(event) => {
-                  const degrees = Number(event.currentTarget.value) as
-                    | 0
-                    | 90
-                    | 180
-                    | 270
-
-                  setAdjustments((previous) => ({
-                    ...previous,
-                    rotate: degrees,
-                  }))
-                  handleRotateCommit(degrees)
-                }}
-              >
-                <option value="0">0 deg</option>
-                <option value="90">90 deg</option>
-                <option value="180">180 deg</option>
-                <option value="270">270 deg</option>
-              </select>
-            </label>
-
-            <label class="checkbox-row">
-              <input
-                type="checkbox"
-                checked={adjustments().cropEnabled}
-                onChange={(event) =>
-                  setAdjustments((previous) => ({
-                    ...previous,
-                    cropEnabled: event.currentTarget.checked,
-                  }))
-                }
-              />
-              <span>Enable crop parameters</span>
-            </label>
-
-            <Show when={adjustments().cropEnabled}>
-              <div class="crop-grid">
-                <label>
-                  <span>X</span>
-                  <input
-                    type="number"
-                    value={adjustments().cropX}
-                    onInput={(event) =>
-                      setAdjustments((previous) => ({
-                        ...previous,
-                        cropX: Number(event.currentTarget.value),
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span>Y</span>
-                  <input
-                    type="number"
-                    value={adjustments().cropY}
-                    onInput={(event) =>
-                      setAdjustments((previous) => ({
-                        ...previous,
-                        cropY: Number(event.currentTarget.value),
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span>W</span>
-                  <input
-                    type="number"
-                    value={adjustments().cropWidth}
-                    onInput={(event) =>
-                      setAdjustments((previous) => ({
-                        ...previous,
-                        cropWidth: Number(event.currentTarget.value),
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span>H</span>
-                  <input
-                    type="number"
-                    value={adjustments().cropHeight}
-                    onInput={(event) =>
-                      setAdjustments((previous) => ({
-                        ...previous,
-                        cropHeight: Number(event.currentTarget.value),
-                      }))
-                    }
-                  />
-                </label>
-              </div>
-              <button onClick={handleApplyCrop} disabled={!graphState()}>
-                Apply Crop
+            <div class="inline-actions">
+              <button onClick={addColor} disabled={palette().length >= MAX_COLORS}>
+                Add Color
               </button>
-            </Show>
+              <span class="helper">
+                Palette size: {palette().length}/{MAX_COLORS}
+              </span>
+            </div>
+          </section>
+
+          <section>
+            <h3>Threshold Curve</h3>
+            <label>
+              <span>Sigmoid midpoint ({sigmoidMidpoint().toFixed(2)})</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={sigmoidMidpoint()}
+                onInput={(event) => {
+                  setSigmoidMidpoint(Number(event.currentTarget.value))
+                  scheduleLiveRender()
+                }}
+              />
+            </label>
+            <label>
+              <span>Sigmoid strength ({sigmoidStrength().toFixed(2)})</span>
+              <input
+                type="range"
+                min={0.05}
+                max={4}
+                step={0.05}
+                value={sigmoidStrength()}
+                onInput={(event) => {
+                  setSigmoidStrength(Number(event.currentTarget.value))
+                  scheduleLiveRender()
+                }}
+              />
+            </label>
           </section>
 
           <section>
@@ -850,7 +864,7 @@ export const EditorRoot: Component = () => {
               <span>Target long edge (px)</span>
               <input
                 type="number"
-                placeholder="Original size"
+                placeholder="auto"
                 value={exportLongEdge() ?? ''}
                 onInput={(event) => {
                   const value = event.currentTarget.value
@@ -861,36 +875,60 @@ export const EditorRoot: Component = () => {
 
             <button
               class="primary"
+              onClick={() => void requestExport()}
               disabled={!graphState() || isExporting()}
-              onClick={() => void handleExport()}
             >
-              {isExporting() ? 'Exporting...' : 'Export'}
+              {isExporting() ? 'Exporting...' : 'Export Current'}
             </button>
           </section>
         </aside>
 
         <section class="panel viewport-panel">
           <div class="viewport-header">
-            <h2>Viewport</h2>
-            <span>{isRendering() ? 'Rendering...' : 'Ready'}</span>
+            <h2>Live Tritonizer Preview</h2>
+            <span>{isRendering() ? 'Rendering' : 'Ready'}</span>
           </div>
           <div class="viewport" ref={viewportRef}>
             <canvas ref={canvasRef} />
           </div>
         </section>
 
-        <aside class="panel history-panel">
-          <h2>History</h2>
-          <Show when={nodePath().length > 0} fallback={<p>No operations yet.</p>}>
-            <ol>
-              <For each={nodePath()}>
-                {(node, index) => (
-                  <li>
-                    <span>{index() + 1}.</span> {OP_LABELS[node.op.type]}
-                  </li>
-                )}
+        <aside class="panel permutations-panel">
+          <h2>Color Permutations</h2>
+          <p class="helper">
+            {palette().length > 2
+              ? 'GPU-first: every order is a different map. We preview the first variants live.'
+              : 'Add one more color to generate permutations'}
+          </p>
+          <Show
+            when={palette().length >= 2}
+            fallback={<p class="helper">Need at least 2 colors.</p>}
+          >
+            <div class="permutation-grid">
+              <For each={permutationCards()}>
+                {(card) => (
+                  <button
+                    classList={{
+                      'perm-card': true,
+                      selected: card.selected,
+                    }}
+                    onClick={() => applyPalette(card.colors)}
+                  >
+                    <Show
+                      when={card.url}
+                      fallback={
+                        <div class="perm-fallback">
+                          <span>{card.loading ? 'Preparing…' : 'Unavailable'}</span>
+                        </div>
+                      }
+                    >
+                      {(url) => <img src={url()} alt={card.label} />}
+                    </Show>
+                    <span class="perm-label">{card.label}</span>
+                  </button>
+                  )}
               </For>
-            </ol>
+            </div>
           </Show>
         </aside>
       </div>
