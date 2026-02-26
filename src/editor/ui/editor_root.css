@@ -11,6 +11,12 @@
   --border-soft: rgb(255 255 255 / 10%);
 
   min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.95rem;
   padding: 1.55rem;
   color: var(--text-primary);
   background:
@@ -38,10 +44,9 @@
 }
 
 .editor-topbar {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 2;
-  margin-bottom: 1.4rem;
+  margin: 0;
   padding: 1.15rem 1.35rem;
   border: 1px solid var(--border);
   border-radius: 1.2rem;
@@ -92,46 +97,22 @@
   color: var(--ui-danger);
 }
 
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-}
-
-.file-input {
-  border: 1px solid var(--border-soft);
-  border-radius: 999px;
-  padding: 0.58rem 1.2rem;
-  color: var(--text-primary);
-  background:
-    linear-gradient(120deg, rgb(255 255 255 / 16%), rgb(255 255 255 / 2%));
-  cursor: pointer;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  user-select: none;
-  transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    box-shadow 160ms ease;
-}
-
-.file-input:hover {
-  border-color: rgb(255 255 255 / 40%);
-  box-shadow: 0 0 0 3px rgb(255 255 255 / 12%);
-}
-
-.file-input:active {
-  transform: translateY(1px);
-}
-
-.file-input input {
+.hidden-file-input {
   display: none;
 }
 
-.editor-layout {
-  display: grid;
-  grid-template-columns: minmax(300px, 350px) minmax(500px, 1fr) minmax(300px, 390px);
-  gap: 1.35rem;
+.editor-viewport-wrap {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.editor-viewport-wrap .viewport-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .panel {
@@ -152,28 +133,27 @@
   letter-spacing: -0.015em;
 }
 
-.controls-panel section {
-  margin-bottom: 1.05rem;
-  padding-bottom: 1.05rem;
-  border-bottom: 1px dashed var(--border-soft);
+.toolbar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.72rem;
 }
 
-.controls-panel section:last-child {
-  border-bottom: 0;
-  margin-bottom: 0;
+.toolbar-group h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-highlight);
+  text-transform: uppercase;
 }
 
-.controls-panel section.tight-section {
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-
-.controls-panel label {
+.toolbar-group label {
   display: block;
   margin-bottom: 0.8rem;
 }
 
-.controls-panel label span {
+.toolbar-group label span {
   display: block;
   margin-bottom: 0.3rem;
   color: var(--text-highlight);
@@ -320,6 +300,29 @@ input[type='number'] {
   min-height: 0;
 }
 
+.editor-toolbar {
+  flex: 0 0 auto;
+  max-height: min(38vh, 300px);
+  overflow: auto;
+  margin-top: 0;
+}
+
+.toolbar-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.editor-toolbar .toolbar-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-toolbar .toolbar-group h3 {
+  margin-bottom: 0.25rem;
+}
+
 .viewport-header {
   display: flex;
   justify-content: space-between;
@@ -350,8 +353,10 @@ input[type='number'] {
 .viewport {
   position: relative;
   border-radius: 0.84rem;
-  min-height: 450px;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
+  cursor: pointer;
   background:
     radial-gradient(circle at 20% 20%, #1d2532 0 10%, #0f1420 40%),
     linear-gradient(120deg, #0d141e, #0a1019);
@@ -362,8 +367,10 @@ input[type='number'] {
 }
 
 .viewport canvas {
+  display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: contain;
   max-width: 100%;
   max-height: 100%;
   border-radius: 0.72rem;
@@ -371,6 +378,46 @@ input[type='number'] {
     0 0 0 1px rgb(255 255 255 / 8%),
     0 12px 30px rgb(0 0 0 / 35%);
   background: #0c1118;
+}
+
+.viewport.dragActive {
+  border: 1px solid var(--ui-accent-soft);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 14%),
+    inset 0 0 0 1px rgb(122 141 255 / 24%);
+}
+
+.viewport-overlay {
+  position: absolute;
+  inset: 0.72rem;
+  border-radius: 0.72rem;
+  border: 1px dashed rgb(255 255 255 / 18%);
+  display: grid;
+  place-items: center;
+  gap: 0.25rem;
+  text-align: center;
+  color: var(--text-highlight);
+  background: rgb(7 12 20 / 52%);
+  backdrop-filter: blur(4px);
+  z-index: 2;
+  pointer-events: none;
+  transition:
+    opacity 200ms ease,
+    transform 220ms ease;
+  opacity: 1;
+}
+
+.viewport-overlay.drag {
+  color: #e8f0ff;
+  border-color: rgb(122 141 255 / 46%);
+  background: rgb(122 141 255 / 14%);
+}
+
+.viewport-overlay p {
+  margin: 0;
+  line-height: 1.25;
+  font-size: 0.95rem;
+  text-wrap: balance;
 }
 
 .permutations-panel .helper {
@@ -381,13 +428,33 @@ input[type='number'] {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  max-height: calc(100vh - 184px);
   overflow: hidden;
+  margin-top: 0;
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px);
+  transition:
+    max-height 320ms ease,
+    opacity 220ms ease,
+    transform 260ms ease,
+    padding 260ms ease,
+    margin 260ms ease;
+}
+
+.permutations-panel.open {
+  margin-top: 0.25rem;
+  max-height: min(40vh, 360px);
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+  padding-top: 1.1rem;
+  padding-bottom: 1.1rem;
+  min-height: 0;
 }
 
 .permutation-grid {
   min-height: 0;
-  flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   display: grid;
@@ -395,6 +462,12 @@ input[type='number'] {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-content: flex-start;
   padding: 0.1rem 0.2rem 0 0;
+  max-height: 0;
+  transition: max-height 300ms ease;
+}
+
+.permutations-panel.open .permutation-grid {
+  max-height: min(36vh, 300px);
 }
 
 .perm-card {
@@ -480,26 +553,22 @@ input[type='number'] {
 }
 
 @media (max-width: 1320px) {
-  .editor-layout {
-    grid-template-columns: minmax(1fr, 1fr) minmax(450px, 1fr) minmax(280px, 1fr);
+  .toolbar-groups {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
   }
 }
 
 @media (max-width: 1200px) {
-  .editor-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .viewport-panel {
-    min-height: 520px;
-  }
-
-  .viewport {
-    min-height: 390px;
+  .editor-shell {
+    padding: 1.2rem;
   }
 
   .permutation-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .editor-toolbar {
+    max-height: min(40vh, 320px);
   }
 }
 
@@ -511,6 +580,10 @@ input[type='number'] {
   .permutation-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .toolbar-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 680px) {
@@ -519,7 +592,45 @@ input[type='number'] {
     gap: 0.95rem;
   }
 
-  .topbar-actions {
-    width: 100%;
+  .editor-toolbar {
+    max-height: min(46vh, 360px);
+  }
+
+  .toolbar-groups {
+    grid-template-columns: 1fr;
+  }
+
+  .permutation-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .viewport-overlay p {
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-height: 820px) {
+  .editor-shell {
+    gap: 0.65rem;
+  }
+
+  .editor-topbar {
+    padding: 0.85rem 1rem;
+  }
+
+  .editor-topbar h1 {
+    font-size: 1.2rem;
+  }
+
+  .permutations-panel.open {
+    max-height: min(32vh, 280px);
+  }
+
+  .permutations-panel.open .permutation-grid {
+    max-height: min(28vh, 240px);
+  }
+
+  .editor-toolbar {
+    max-height: min(34vh, 240px);
   }
 }

@@ -34,6 +34,26 @@ const PERMUTATION_CARD_LIMIT = 9
 const PERMUTATION_VIEWPORT = 200
 const PREVIEW_DEBOUNCE_MS = 12
 const PERMUTATION_DEBOUNCE_MS = 95
+const FILE_INPUT_ACCEPT =
+  'image/png,image/jpeg,image/webp,image/avif,image/tiff,image/x-tiff'
+const IMAGE_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/avif',
+  'image/tiff',
+  'image/x-tiff',
+])
+const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.avif', '.tif', '.tiff'] as const
+
+function isSupportedImageFile(file: File): boolean {
+  if (IMAGE_TYPES.has(file.type.toLowerCase())) {
+    return true
+  }
+
+  const filename = file.name.toLowerCase()
+  return IMAGE_EXTENSIONS.some((extension) => filename.endsWith(extension))
+}
 
 const devicePixelRatio = (): number => {
   if (typeof window === 'undefined') {
@@ -130,6 +150,9 @@ function readImageDimensions(blob: Blob): Promise<SourceDimensions> {
     image.src = url
   })
 }
+
+const invalidFormatMessage =
+  'Unsupported image format. Use PNG, JPEG, WebP, AVIF, or TIFF.'
 
 function createTritonizerPath(
   state: EditorGraphState,
@@ -280,9 +303,12 @@ export const EditorRoot: Component = () => {
   const [exportQuality, setExportQuality] = createSignal(0.92)
   const [exportLongEdge, setExportLongEdge] = createSignal<number | null>(null)
   const [viewportSize, setViewportSize] = createSignal({ width: 960, height: 640 })
+  const [isPermutationDrawerOpen, setIsPermutationDrawerOpen] = createSignal(false)
+  const [isDragActive, setIsDragActive] = createSignal(false)
 
   let viewportRef: HTMLDivElement | undefined
   let canvasRef: HTMLCanvasElement | undefined
+  let fileInputRef: HTMLInputElement | undefined
   let previewDebounceTimer: number | undefined
   let permutationDebounceTimer: number | undefined
   let latestPreviewRequest = 0
@@ -772,6 +798,116 @@ export const EditorRoot: Component = () => {
     }
   })
 
+  createEffect(() => {
+    setIsPermutationDrawerOpen(Boolean(assetId()) && palette().length >= 2)
+  })
+
+  const openImageFromFile = (file: File): void => {
+    if (!isSupportedImageFile(file)) {
+      setError(invalidFormatMessage)
+      return
+    }
+
+    setError(null)
+    void handleFileLoad(file)
+  }
+
+  const handleOpenImage = (event: Event): void => {
+    const inputElement = event.currentTarget
+    if (!inputElement || !(inputElement instanceof HTMLInputElement)) {
+      return
+    }
+
+    const files = inputElement.files
+    if (!files || files.length === 0) {
+      return
+    }
+
+    const nextFile = files[0]
+    if (!nextFile) {
+      return
+    }
+
+    openImageFromFile(nextFile)
+    inputElement.value = ''
+  }
+
+  const handleViewportDragEnter = (event: DragEvent): void => {
+    event.preventDefault()
+    event.stopPropagation()
+
+    if (!event.dataTransfer) {
+      return
+    }
+
+    const hasFiles = event.dataTransfer.types.includes('Files')
+    if (!hasFiles) {
+      return
+    }
+
+    setIsDragActive(true)
+  }
+
+  const handleViewportDragOver = (event: DragEvent): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!event.dataTransfer) {
+      return
+    }
+
+    event.dataTransfer.dropEffect = 'copy'
+    setIsDragActive(true)
+  }
+
+  const handleViewportDragLeave = (event: DragEvent): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    const currentTarget = event.currentTarget as HTMLDivElement | null
+    const relatedTarget = event.relatedTarget
+    if (
+      !currentTarget ||
+      !relatedTarget ||
+      (relatedTarget !== currentTarget &&
+        !currentTarget.contains(relatedTarget as Node))
+    ) {
+      setIsDragActive(false)
+    }
+  }
+
+  const handleViewportDrop = (event: DragEvent): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDragActive(false)
+
+    const files = event.dataTransfer?.files
+    if (!files || files.length === 0) {
+      setError('Drop a valid image file to continue.')
+      return
+    }
+
+    const nextFile = files[0]
+    if (!nextFile) {
+      setError('Drop a valid image file to continue.')
+      return
+    }
+
+    if (!isSupportedImageFile(nextFile)) {
+      setError(invalidFormatMessage)
+      return
+    }
+
+    setError(null)
+    void handleFileLoad(nextFile)
+  }
+
+  const openImagePicker = (): void => {
+    if (!fileInputRef) {
+      return
+    }
+
+    fileInputRef.click()
+  }
+
   onCleanup(() => {
     orchestrator.dispose()
     if (previewDebounceTimer !== undefined) {
@@ -803,33 +939,105 @@ export const EditorRoot: Component = () => {
             {(message) => <p class="error">{message()}</p>}
           </Show>
         </div>
-
-        <div class="topbar-actions">
-          <label class="file-input">
-            Open image
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/avif,image/tiff,image/tif"
-              onChange={(event) => {
-                const files = event.currentTarget.files
-                if (!files || files.length === 0) {
-                  return
-                }
-                const nextFile = files[0]
-                if (!nextFile) {
-                  return
-                }
-                void handleFileLoad(nextFile)
-              }}
-            />
-          </label>
-        </div>
       </header>
 
-      <div class="editor-layout">
-        <aside class="panel controls-panel">
+      <section class="editor-viewport-wrap">
+        <section class="panel viewport-panel">
+          <div class="viewport-header">
+            <h2>Preview</h2>
+            <span class="status-chip" classList={{ ready: !isRendering(), rendering: isRendering() }}>
+              <span class="live-dot" />
+              {isRendering() ? 'Live' : 'Ready'}
+            </span>
+          </div>
+          <div
+            class="viewport"
+            classList={{ dragActive: isDragActive() }}
+            ref={viewportRef}
+            onClick={openImagePicker}
+            onDragEnter={handleViewportDragEnter}
+            onDragOver={handleViewportDragOver}
+            onDragLeave={handleViewportDragLeave}
+            onDrop={handleViewportDrop}
+            role="button"
+            tabIndex={0}
+          >
+            <canvas ref={canvasRef} />
+            <Show when={!assetId()}>
+              <div class="viewport-overlay">
+                <p>Drop an image here to load</p>
+                <p>or click to choose a file</p>
+              </div>
+            </Show>
+            <Show when={isDragActive() && !assetId()}>
+              <div class="viewport-overlay drag">
+                <p>Drop image to load</p>
+              </div>
+            </Show>
+            <Show when={isDragActive() && assetId()}>
+              <div class="viewport-overlay drag">
+                <p>Drop image to replace</p>
+              </div>
+            </Show>
+          </div>
+        </section>
+      </section>
+      <input
+        ref={fileInputRef}
+        class="hidden-file-input"
+        type="file"
+        accept={FILE_INPUT_ACCEPT}
+        onChange={handleOpenImage}
+      />
 
-          <section>
+      <aside
+        class="panel permutations-panel"
+        classList={{ open: isPermutationDrawerOpen() }}
+      >
+        <h2>Permutations</h2>
+        <Show when={!assetId()}>
+          <p class="helper">Load an image to generate permutation previews.</p>
+        </Show>
+        <Show when={assetId() && palette().length < 2}>
+          <p class="helper">Add a second color to generate permutations.</p>
+        </Show>
+        <Show when={assetId() && palette().length >= 2}>
+          <Show when={palette().length === 2}>
+            <p class="helper">Add one more color to generate permutations</p>
+          </Show>
+
+          <div class="permutation-grid">
+            <For each={permutationCards()}>
+              {(card) => (
+                <button
+                  classList={{
+                    'perm-card': true,
+                    selected: card.selected,
+                  }}
+                  onClick={() => applyPalette(card.colors)}
+                >
+                  <Show
+                    when={card.url}
+                    fallback={
+                      <div class="perm-fallback">
+                        <span>{card.loading ? 'Preparing…' : 'Unavailable'}</span>
+                      </div>
+                    }
+                  >
+                    {(url) => <img src={url()} alt={card.label} />}
+                  </Show>
+                  <span class="perm-label">{card.label}</span>
+                </button>
+              )}
+            </For>
+          </div>
+        </Show>
+      </aside>
+
+      <footer class="editor-toolbar panel">
+        <div class="toolbar-groups">
+          <section class="toolbar-group">
+            <h3>Palette</h3>
             <div class="palette-grid">
               <For each={palette()}>
                 {(color, index) => (
@@ -880,7 +1088,8 @@ export const EditorRoot: Component = () => {
             </div>
           </section>
 
-          <section>
+          <section class="toolbar-group">
+            <h3>Tweak</h3>
             <label>
               <span>Sigmoid midpoint ({sigmoidMidpoint().toFixed(2)})</span>
               <input
@@ -911,7 +1120,8 @@ export const EditorRoot: Component = () => {
             </label>
           </section>
 
-          <section class="tight-section">
+          <section class="toolbar-group">
+            <h3>Export</h3>
             <label>
               <span>Format</span>
               <select
@@ -973,60 +1183,8 @@ export const EditorRoot: Component = () => {
               {isExporting() ? 'Exporting...' : 'Export Current'}
             </button>
           </section>
-        </aside>
-
-        <section class="panel viewport-panel">
-          <div class="viewport-header">
-            <h2>Preview</h2>
-            <span class="status-chip" classList={{ ready: !isRendering(), rendering: isRendering() }}>
-              <span class="live-dot" />
-              {isRendering() ? 'Live' : 'Ready'}
-            </span>
-          </div>
-          <div class="viewport" ref={viewportRef}>
-            <canvas ref={canvasRef} />
-          </div>
-        </section>
-
-        <aside class="panel permutations-panel">
-          <h2>Permutations</h2>
-          <Show when={palette().length === 2}>
-            <p class="helper">Add one more color to generate permutations</p>
-          </Show>
-          <Show
-            when={palette().length >= 2}
-            fallback={<p class="helper">Need at least 2 colors.</p>}
-          >
-            <div
-              class="permutation-grid"
-            >
-              <For each={permutationCards()}>
-                {(card) => (
-                  <button
-                    classList={{
-                      'perm-card': true,
-                      selected: card.selected,
-                    }}
-                    onClick={() => applyPalette(card.colors)}
-                  >
-                    <Show
-                      when={card.url}
-                      fallback={
-                        <div class="perm-fallback">
-                          <span>{card.loading ? 'Preparing…' : 'Unavailable'}</span>
-                        </div>
-                      }
-                    >
-                      {(url) => <img src={url()} alt={card.label} />}
-                    </Show>
-                    <span class="perm-label">{card.label}</span>
-                  </button>
-                  )}
-              </For>
-            </div>
-          </Show>
-        </aside>
-      </div>
+        </div>
+      </footer>
     </main>
   )
 }
