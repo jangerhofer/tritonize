@@ -654,12 +654,15 @@ export const EditorRoot: Component = () => {
     setError(null)
 
     try {
+      const maybeQuality =
+        format === 'png' || format === 'tiff' ? undefined : exportQuality()
+      const maybeTargetLongEdge = exportLongEdge() ?? undefined
       const options = decodeUnknownSync(ExportOptionsSchema, {
         format,
         colorProfile: 'srgb',
         metadataPolicy: 'preserve-when-possible',
-        quality: format === 'png' || format === 'tiff' ? undefined : exportQuality(),
-        targetLongEdge: exportLongEdge() ?? undefined,
+        ...(maybeQuality === undefined ? {} : { quality: maybeQuality }),
+        ...(maybeTargetLongEdge === undefined ? {} : { targetLongEdge: maybeTargetLongEdge }),
       })
 
       const result = await orchestrator.queueExport({
