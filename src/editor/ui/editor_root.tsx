@@ -474,7 +474,8 @@ export const EditorRoot: Component = () => {
       return
     }
 
-    const visibleSet = new Set(visibleCardIds)
+    const shouldFilterVisible = visibleCardIds !== undefined
+    const visibleSet = shouldFilterVisible ? new Set(visibleCardIds) : undefined
     const requestId = ++latestPermutationRequest
     for (let i = 0; i < cards.length; i += 1) {
       const card = cards[i]
@@ -482,7 +483,7 @@ export const EditorRoot: Component = () => {
         continue
       }
 
-      if (visibleCardIds !== undefined && !visibleSet.has(card.id)) {
+      if (shouldFilterVisible && visibleSet && !visibleSet.has(card.id)) {
         continue
       }
 
