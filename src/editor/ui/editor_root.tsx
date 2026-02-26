@@ -726,19 +726,27 @@ export const EditorRoot: Component = () => {
       }
     })
 
-    if (viewportRef) {
-      const observer = new ResizeObserver((entries) => {
-        const size = entries[0]
-        if (!size) {
-          return
-        }
-        setViewportSize({
-          width: Math.max(320, Math.floor(size.contentRect.width)),
-          height: Math.max(240, Math.floor(size.contentRect.height)),
-        })
+    const updateViewportFromRef = (): void => {
+      if (!viewportRef) {
+        return
+      }
+
+      const rect = viewportRef.getBoundingClientRect()
+      setViewportSize({
+        width: Math.max(320, Math.floor(rect.width)),
+        height: Math.max(240, Math.floor(rect.height)),
       })
+      scheduleLiveRender({ refreshCards: false })
+    }
+
+    if (viewportRef) {
+      const observer = new ResizeObserver(updateViewportFromRef)
       observer.observe(viewportRef)
       onCleanup(() => observer.disconnect())
+      window.addEventListener('resize', updateViewportFromRef)
+      onCleanup(() => {
+        window.removeEventListener('resize', updateViewportFromRef)
+      })
     }
   })
 
@@ -748,13 +756,17 @@ export const EditorRoot: Component = () => {
     const colorState = palette()
     const midpoint = sigmoidMidpoint()
     const strength = sigmoidStrength()
+    const viewport = viewportSize()
 
     void state
     void loadedAssetId
     void colorState
     void midpoint
     void strength
-    scheduleLiveRender()
+    void viewport
+    if (viewport.width > 0 && viewport.height > 0) {
+      scheduleLiveRender({ refreshCards: false })
+    }
   })
 
   onCleanup(() => {
