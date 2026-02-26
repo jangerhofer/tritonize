@@ -802,6 +802,15 @@ export const EditorRoot: Component = () => {
     setIsPermutationDrawerOpen(Boolean(assetId()) && palette().length >= 2)
   })
 
+  createEffect(() => {
+    void status()
+    void sourceDimensions()
+    void previewStats()
+    void exportStats()
+    void error()
+    void isRendering()
+  })
+
   const openImageFromFile = (file: File): void => {
     if (!isSupportedImageFile(file)) {
       setError(invalidFormatMessage)
@@ -922,37 +931,14 @@ export const EditorRoot: Component = () => {
   return (
     <main class="editor-shell">
       <header class="editor-topbar">
-        <div>
-          <p class="eyebrow">Tritonizer</p>
-          <h1>Tritonizer</h1>
-          <p class="meta">{status()}</p>
-          <Show when={sourceDimensions()}>
-            {(dimensions) => <p class="meta">{dimensions().width}x{dimensions().height}</p>}
-          </Show>
-          <Show when={previewStats()}>
-            <p class="stats">Preview • {previewStats()}</p>
-          </Show>
-          <Show when={exportStats()}>
-            <p class="stats">Export • {exportStats()}</p>
-          </Show>
-          <Show when={error()}>
-            {(message) => <p class="error">{message()}</p>}
-          </Show>
-        </div>
+        <h1 class="editor-title">Tritonize</h1>
       </header>
 
       <section
         class="editor-viewport-wrap"
         classList={{ 'drawer-open': isPermutationDrawerOpen() }}
       >
-        <section class="panel viewport-panel">
-          <div class="viewport-header">
-            <h2>Preview</h2>
-            <span class="status-chip" classList={{ ready: !isRendering(), rendering: isRendering() }}>
-              <span class="live-dot" />
-              {isRendering() ? 'Live' : 'Ready'}
-            </span>
-          </div>
+        <section class="viewport-panel">
           <div
             class="viewport"
             classList={{ dragActive: isDragActive() }}
