@@ -68,6 +68,25 @@ const initialPalette: readonly RGB[] = [
   [255, 255, 255],
 ]
 
+function palettesMatch(left: readonly RGB[], right: readonly RGB[]): boolean {
+  if (left.length !== right.length) {
+    return false
+  }
+
+  return left.every((color, index) => {
+    const other = right[index]
+    if (!other) {
+      return false
+    }
+
+    return (
+      other[0] === color[0] &&
+      other[1] === color[1] &&
+      other[2] === color[2]
+    )
+  })
+}
+
 function hexToRgb(hexColor: string): RGB {
   const normalized = hexColor.replace('#', '')
   if (normalized.length !== 6) {
@@ -288,6 +307,16 @@ export const EditorRoot: Component = () => {
   ): void => {
     releasePermutationUrls(nextCards)
     setPermutationCards(nextCards)
+  }
+
+  const refreshPermutationSelection = (nextColors: readonly RGB[]): void => {
+    const selectedColors = normalizePaletteForRender(nextColors)
+    setPermutationCards((previous) =>
+      previous.map((card) => ({
+        ...card,
+        selected: palettesMatch(card.colors, selectedColors),
+      }))
+    )
   }
 
   const drawPreviewBitmap = (
@@ -512,7 +541,11 @@ export const EditorRoot: Component = () => {
     }
   }
 
-  const scheduleLiveRender = (): void => {
+  const scheduleLiveRender = (options?: {
+    refreshCards?: boolean
+  }): void => {
+    const refreshCards = options?.refreshCards ?? true
+
     if (previewDebounceTimer !== undefined) {
       window.clearTimeout(previewDebounceTimer)
     }
@@ -529,8 +562,12 @@ export const EditorRoot: Component = () => {
       const baseParams = params()
       const basePalette = normalizePaletteForRender(palette())
       void requestPreview(createTritonizerPath(state, baseParams, basePalette))
-      const cards = buildPermutationCards(basePalette, palette())
-      setPermutationCardsWithCleanup(cards)
+      if (refreshCards) {
+        const cards = buildPermutationCards(basePalette, basePalette)
+        setPermutationCardsWithCleanup(cards)
+      } else {
+        refreshPermutationSelection(basePalette)
+      }
 
       permutationDebounceTimer = window.setTimeout(() => {
         void requestPermutationPreviews(
@@ -544,7 +581,7 @@ export const EditorRoot: Component = () => {
 
   const applyPalette = (colors: readonly RGB[]): void => {
     setPalette([...colors])
-    scheduleLiveRender()
+    scheduleLiveRender({ refreshCards: false })
   }
 
   const handleColorChange = (index: number, event: Event): void => {
