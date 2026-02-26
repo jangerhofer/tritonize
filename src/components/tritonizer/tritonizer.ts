@@ -35,11 +35,20 @@ export class WebGLTritonizer {
 			return existing
 		}
 
-		// Vertex shader for full-screen quad
+		/**
+		 * Shared geometry shader for both passes.
+		 *
+		 * Why this exists:
+		 * - The image transform is done as a screen-space post-process, so no model
+		 *   geometry is needed.
+		 * - A unit quad guarantees every output pixel is visited exactly once.
+		 * - Reusing one vertex shader for both programs avoids code duplication and
+		 *   keeps state changes minimal.
+		 */
 		const vertex_shader_source = `
-			attribute vec2 a_position;
-			attribute vec2 a_texCoord;
-			varying vec2 v_texCoord;
+				attribute vec2 a_position;
+				attribute vec2 a_texCoord;
+				varying vec2 v_texCoord;
 			
 			void main() {
 				gl_Position = vec4(a_position, 0.0, 1.0);
@@ -47,9 +56,23 @@ export class WebGLTritonizer {
 			}
 		`
 
-		// Fragment shader for tritonize effect
+		/**
+		 * Main tritonize shader:
+		 * 1) Sample `u_image` at the current UV. The rest of the pipeline works in
+		 *    this local pixel so the effect is fully fragment-parallel and uniform.
+		 * 2) Compute grayscale luminance with standard weights so perceived brightness
+		 *    drives the style conversion instead of raw channel max/min.
+		 * 3) Apply a sigmoid curve to accentuate tonal separation:
+		 *    - non-linear remap increases contrast around midtones,
+		 *    - preserves smooth darks/lights outside the steep area.
+		 * 4) Quantize the remapped value into discrete buckets via
+		 *    `floor(threshold * u_colorCount)`.
+		 *    This is the core posterization step that produces the “tritonized” look.
+		 * 5) Clamp and select a color from `u_colors` (max 16 entries) to avoid invalid
+		 *    indexing and produce a deterministic palette-mapped output color.
+		 */
 		const fragment_shader_source = `
-			precision mediump float;
+				precision mediump float;
 			
 			uniform sampler2D u_image;
 			uniform vec3 u_colors[16];
@@ -88,7 +111,17 @@ export class WebGLTritonizer {
 			}
 		`
 
-		// Blur fragment shader
+		/**
+		 * Blur pass shader:
+		 * 1) Convert blur amount into pixel-space offsets with `u_resolution`.
+		 *    This keeps the kernel size resolution-independent.
+		 * 2) Sample a 9x9 neighborhood around the current UV to gather nearby color
+		 *    context for each output pixel.
+		 * 3) Use a Gaussian-like falloff (`exp(-(x²+y²)/8)`) so nearby pixels contribute
+		 *    more than far pixels, which avoids harsh block artifacts after quantization.
+		 * 4) Normalize by accumulated weight so overall brightness is preserved after
+		 *    averaging.
+		 */
 		const blur_fragment_shader_source = `
 			precision mediump float;
 			
