@@ -573,11 +573,12 @@ export const EditorRoot: Component = () => {
       setPermutationCardsWithCleanup(cards)
 
       permutationDebounceTimer = window.setTimeout(() => {
+        const visibleIds = visiblePermutationCards()
         void requestPermutationPreviews(
           state,
           baseParams,
           basePalette,
-          [...visiblePermutationCards()]
+          visibleIds.size === 0 ? undefined : [...visibleIds]
         )
       }, PERMUTATION_DEBOUNCE_MS)
     }, PREVIEW_DEBOUNCE_MS)
