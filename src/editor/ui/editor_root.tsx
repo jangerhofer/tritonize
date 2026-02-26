@@ -31,9 +31,15 @@ const DEFAULT_EXPORT_CAPABILITIES: ExportCapabilities = {
 const MAX_COLORS = 8
 const MAX_PERMUTATION_INPUT = 6
 const PERMUTATION_CARD_LIMIT = 9
+const MIN_PREVIEW_LIMIT = 2
+const MAX_PREVIEW_LIMIT = 24
 const PERMUTATION_VIEWPORT = 200
 const PREVIEW_DEBOUNCE_MS = 12
 const PERMUTATION_DEBOUNCE_MS = 95
+const SETTINGS_STORAGE_KEY = 'tritonize.settings.v1'
+const DEFAULT_SIGMOID_MIDPOINT = 0.5
+const DEFAULT_SIGMOID_STRENGTH = 1
+const DEFAULT_EXPORT_QUALITY = 0.92
 const FILE_INPUT_ACCEPT =
   'image/png,image/jpeg,image/webp,image/avif,image/tiff,image/x-tiff'
 const IMAGE_TYPES = new Set([
@@ -82,11 +88,167 @@ interface TritonizerParams {
   readonly sigmoidStrength: number
 }
 
+type ExportFormat = 'jpeg' | 'png' | 'webp' | 'avif' | 'tiff'
+
+interface PersistedSettings {
+  readonly palette: readonly RGB[]
+  readonly sigmoidMidpoint: number
+  readonly sigmoidStrength: number
+  readonly previewLimit: number
+  readonly previewPermutationDepth: number
+  readonly exportFormat: ExportFormat
+  readonly exportQuality: number
+  readonly exportLongEdge: number | null
+  readonly exportAllPermutations: boolean
+}
+
 const initialPalette: readonly RGB[] = [
   [205, 34, 45],
   [10, 12, 16],
   [255, 255, 255],
 ]
+
+const exportFormats: readonly ExportFormat[] = ['jpeg', 'png', 'webp', 'avif', 'tiff']
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function parseRgbTuple(value: unknown): RGB | null {
+  if (!Array.isArray(value) || value.length !== 3) {
+    return null
+  }
+
+  const red = value[0]
+  const green = value[1]
+  const blue = value[2]
+  if (
+    typeof red !== 'number' ||
+    typeof green !== 'number' ||
+    typeof blue !== 'number'
+  ) {
+    return null
+  }
+
+  return [
+    clampNumber(Math.round(red), 0, 255),
+    clampNumber(Math.round(green), 0, 255),
+    clampNumber(Math.round(blue), 0, 255),
+  ]
+}
+
+function normalizePalette(value: unknown): readonly RGB[] | null {
+  if (!Array.isArray(value)) {
+    return null
+  }
+
+  const next: RGB[] = []
+  for (const entry of value) {
+    const color = parseRgbTuple(entry)
+    if (!color) {
+      return null
+    }
+    next.push(color)
+  }
+
+  if (next.length < 2) {
+    return null
+  }
+
+  return next.slice(0, MAX_COLORS)
+}
+
+function isExportFormat(value: unknown): value is ExportFormat {
+  return typeof value === 'string' && exportFormats.includes(value as ExportFormat)
+}
+
+function loadPersistedSettings(): PersistedSettings | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY)
+    if (!raw) {
+      return null
+    }
+
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const palette = normalizePalette(parsed['palette'])
+    if (!palette) {
+      return null
+    }
+
+    const midpoint =
+      typeof parsed['sigmoidMidpoint'] === 'number'
+        ? clampNumber(parsed['sigmoidMidpoint'], 0, 1)
+        : DEFAULT_SIGMOID_MIDPOINT
+    const strength =
+      typeof parsed['sigmoidStrength'] === 'number'
+        ? clampNumber(parsed['sigmoidStrength'], 0.05, 4)
+        : DEFAULT_SIGMOID_STRENGTH
+    const previewLimit =
+      typeof parsed['previewLimit'] === 'number'
+        ? clampNumber(
+          Math.round(parsed['previewLimit']),
+          MIN_PREVIEW_LIMIT,
+          MAX_PREVIEW_LIMIT
+        )
+        : PERMUTATION_CARD_LIMIT
+    const previewPermutationDepth =
+      typeof parsed['previewPermutationDepth'] === 'number'
+        ? clampNumber(Math.round(parsed['previewPermutationDepth']), 2, MAX_PERMUTATION_INPUT)
+        : MAX_PERMUTATION_INPUT
+    const format = isExportFormat(parsed['exportFormat']) ? parsed['exportFormat'] : 'png'
+    const quality =
+      typeof parsed['exportQuality'] === 'number'
+        ? clampNumber(parsed['exportQuality'], 0.1, 1)
+        : DEFAULT_EXPORT_QUALITY
+    const exportLongEdge =
+      typeof parsed['exportLongEdge'] === 'number' && parsed['exportLongEdge'] >= 1
+        ? Math.round(parsed['exportLongEdge'])
+        : null
+    const exportAllPermutations = parsed['exportAllPermutations'] === true
+
+    return {
+      palette,
+      sigmoidMidpoint: midpoint,
+      sigmoidStrength: strength,
+      previewLimit,
+      previewPermutationDepth,
+      exportFormat: format,
+      exportQuality: quality,
+      exportLongEdge,
+      exportAllPermutations,
+    }
+  } catch {
+    return null
+  }
+}
+
+function persistSettings(settings: PersistedSettings): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings))
+  } catch {
+    // Ignore storage failures (private mode, quota, or blocked storage).
+  }
+}
+
+function clearPersistedSettings(): void {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.removeItem(SETTINGS_STORAGE_KEY)
+  } catch {
+    // Ignore storage failures.
+  }
+}
 
 function palettesMatch(left: readonly RGB[], right: readonly RGB[]): boolean {
   if (left.length !== right.length) {
@@ -232,16 +394,21 @@ function generatePermutations(
 
 function buildPermutationCards(
   colors: readonly RGB[],
-  selectedColors: readonly RGB[]
+  selectedColors: readonly RGB[],
+  limit: number,
+  permutationDepth: number
 ): readonly Permutation[] {
   if (colors.length < 2) {
     return []
   }
 
-  const variableCount = Math.min(colors.length, MAX_PERMUTATION_INPUT)
+  const variableCount = Math.max(
+    2,
+    Math.min(colors.length, MAX_PERMUTATION_INPUT, permutationDepth)
+  )
   const head = colors.slice(0, variableCount)
   const fixedTail = colors.slice(variableCount)
-  const permutations = generatePermutations(head, PERMUTATION_CARD_LIMIT)
+  const permutations = generatePermutations(head, limit)
 
   return permutations.map((entry, index) => {
     const fullPalette = [...entry, ...fixedTail]
@@ -277,43 +444,55 @@ function normalizePaletteForRender(colors: readonly RGB[]): readonly RGB[] {
 
 export const EditorRoot: Component = () => {
   const orchestrator = new EditorRenderOrchestrator()
+  const persistedSettings = loadPersistedSettings()
 
   const [graphState, setGraphState] = createSignal<EditorGraphState | null>(null)
   const [assetId, setAssetId] = createSignal<ReturnType<typeof createAssetId> | null>(
     null
   )
-  const [status, setStatus] = createSignal('Load an image to begin')
   const [error, setError] = createSignal<string | null>(null)
-  const [isRendering, setIsRendering] = createSignal(false)
   const [isExporting, setIsExporting] = createSignal(false)
-  const [sourceDimensions, setSourceDimensions] = createSignal<SourceDimensions | null>(
-    null
+  const [palette, setPalette] = createSignal<readonly RGB[]>(
+    persistedSettings?.palette ?? initialPalette
   )
-  const [palette, setPalette] = createSignal<readonly RGB[]>(initialPalette)
-  const [sigmoidMidpoint, setSigmoidMidpoint] = createSignal(0.5)
-  const [sigmoidStrength, setSigmoidStrength] = createSignal(1)
-  const [previewStats, setPreviewStats] = createSignal('')
-  const [exportStats, setExportStats] = createSignal('')
+  const [sigmoidMidpoint, setSigmoidMidpoint] = createSignal(
+    persistedSettings?.sigmoidMidpoint ?? DEFAULT_SIGMOID_MIDPOINT
+  )
+  const [sigmoidStrength, setSigmoidStrength] = createSignal(
+    persistedSettings?.sigmoidStrength ?? DEFAULT_SIGMOID_STRENGTH
+  )
   const [permutationCards, setPermutationCards] =
     createSignal<readonly Permutation[]>([])
   const [capabilities, setCapabilities] =
     createSignal<ExportCapabilities>(DEFAULT_EXPORT_CAPABILITIES)
   const [exportFormat, setExportFormat] =
-    createSignal<'jpeg' | 'png' | 'webp' | 'avif' | 'tiff'>('png')
-  const [exportQuality, setExportQuality] = createSignal(0.92)
-  const [exportLongEdge, setExportLongEdge] = createSignal<number | null>(null)
+    createSignal<ExportFormat>(persistedSettings?.exportFormat ?? 'png')
+  const [exportQuality, setExportQuality] = createSignal(
+    persistedSettings?.exportQuality ?? DEFAULT_EXPORT_QUALITY
+  )
+  const [exportLongEdge, setExportLongEdge] = createSignal<number | null>(
+    persistedSettings?.exportLongEdge ?? null
+  )
   const [exportAllPermutations, setExportAllPermutations] =
-    createSignal(false)
+    createSignal(persistedSettings?.exportAllPermutations ?? false)
+  const [previewLimit, setPreviewLimit] = createSignal(
+    persistedSettings?.previewLimit ?? PERMUTATION_CARD_LIMIT
+  )
+  const [previewPermutationDepth, setPreviewPermutationDepth] =
+    createSignal(persistedSettings?.previewPermutationDepth ?? MAX_PERMUTATION_INPUT)
   const [viewportSize, setViewportSize] = createSignal({ width: 960, height: 640 })
   const [isPermutationDrawerOpen, setIsPermutationDrawerOpen] = createSignal(false)
   const [isDragActive, setIsDragActive] = createSignal(false)
   const [isExportMenuOpen, setIsExportMenuOpen] = createSignal(false)
+  const [isAdvancedMenuOpen, setIsAdvancedMenuOpen] = createSignal(false)
 
   let viewportRef: HTMLDivElement | undefined
   let canvasRef: HTMLCanvasElement | undefined
   let fileInputRef: HTMLInputElement | undefined
   let exportMenuRef: HTMLDivElement | undefined
   let exportButtonRef: HTMLButtonElement | undefined
+  let advancedMenuRef: HTMLDivElement | undefined
+  let advancedButtonRef: HTMLButtonElement | undefined
   let previewDebounceTimer: number | undefined
   let permutationDebounceTimer: number | undefined
   let latestPreviewRequest = 0
@@ -433,7 +612,6 @@ export const EditorRoot: Component = () => {
     }
 
     const requestId = ++latestPreviewRequest
-    setIsRendering(true)
 
     try {
       const scale = devicePixelRatio()
@@ -458,8 +636,8 @@ export const EditorRoot: Component = () => {
       }
 
       drawPreviewBitmap(result.bitmap, cssWidth, cssHeight)
-      setPreviewStats(
-        `${result.stats.backend} ${Math.round(result.stats.elapsedMs)}ms @ ${result.stats.width}x${result.stats.height}`
+      console.info(
+        `[preview] backend=${result.stats.backend} elapsedMs=${Math.round(result.stats.elapsedMs)} size=${result.stats.width}x${result.stats.height}`
       )
     } catch (renderError) {
       const message =
@@ -469,10 +647,6 @@ export const EditorRoot: Component = () => {
 
       if (!message.toLowerCase().includes('cancel')) {
         setError(message)
-      }
-    } finally {
-      if (requestId === latestPreviewRequest) {
-        setIsRendering(false)
       }
     }
   }
@@ -592,9 +766,20 @@ export const EditorRoot: Component = () => {
 
       const baseParams = params()
       const basePalette = normalizePaletteForRender(palette())
+      const currentPreviewLimit = Math.max(1, previewLimit())
+      const currentPermutationDepth = Math.max(2, previewPermutationDepth())
       void requestPreview(createTritonizerPath(state, baseParams, basePalette))
-      if (refreshCards) {
-        const cards = buildPermutationCards(basePalette, basePalette)
+      const existingCards = permutationCards()
+      const shouldBuildCards =
+        refreshCards ||
+        (existingCards.length === 0 && basePalette.length >= 2)
+      if (shouldBuildCards) {
+        const cards = buildPermutationCards(
+          basePalette,
+          basePalette,
+          currentPreviewLimit,
+          currentPermutationDepth
+        )
         setPermutationCardsWithCleanup(cards)
       } else {
         refreshPermutationSelection(basePalette)
@@ -685,7 +870,12 @@ export const EditorRoot: Component = () => {
   const buildExportTargets = (): readonly (readonly RGB[])[] => {
     const basePalette = normalizePaletteForRender(palette())
     if (exportAllPermutations() && basePalette.length >= 2) {
-      return buildPermutationCards(basePalette, basePalette).map((card) => card.colors)
+      return buildPermutationCards(
+        basePalette,
+        basePalette,
+        Math.max(1, previewLimit()),
+        Math.max(2, previewPermutationDepth())
+      ).map((card) => card.colors)
     }
 
     return [basePalette]
@@ -741,11 +931,15 @@ export const EditorRoot: Component = () => {
         URL.revokeObjectURL(url)
       }
 
-      setExportStats(
-        normalizedTargets.length > 1
-          ? `Exported ${normalizedTargets.length} images (${Math.round(exportBytes / 1024)} KB)`
-          : `${format.toUpperCase()} ${exportMs}ms (${Math.round(exportBytes / 1024)} KB)`
-      )
+      if (normalizedTargets.length > 1) {
+        console.info(
+          `[export] format=${format} count=${normalizedTargets.length} totalKB=${Math.round(exportBytes / 1024)} elapsedMs=${exportMs}`
+        )
+      } else {
+        console.info(
+          `[export] format=${format} count=1 totalKB=${Math.round(exportBytes / 1024)} elapsedMs=${exportMs}`
+        )
+      }
     } catch (exportError) {
       setError(
         exportError instanceof Error ? exportError.message : 'Export failed unexpectedly'
@@ -767,6 +961,7 @@ export const EditorRoot: Component = () => {
 
     event.preventDefault()
     event.stopPropagation()
+    setIsAdvancedMenuOpen(false)
     setIsExportMenuOpen((open) => !open)
   }
 
@@ -774,9 +969,19 @@ export const EditorRoot: Component = () => {
     setIsExportMenuOpen(false)
   }
 
+  const handleAdvancedButtonToggle = (event: Event): void => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsExportMenuOpen(false)
+    setIsAdvancedMenuOpen((open) => !open)
+  }
+
+  const closeAdvancedMenu = (): void => {
+    setIsAdvancedMenuOpen(false)
+  }
+
   const handleFileLoad = async (blob: Blob): Promise<void> => {
     setError(null)
-    setStatus('Loading image...')
 
     try {
       const dimensions = await readImageDimensions(blob)
@@ -787,10 +992,8 @@ export const EditorRoot: Component = () => {
         height: dimensions.height,
       })
 
-      setSourceDimensions(dimensions)
       setAssetId(nextAssetId)
       setGraphState(nextState)
-      setStatus(`Loaded ${dimensions.width}x${dimensions.height}`)
       await orchestrator.loadAsset(nextAssetId, blob)
       releasePermutationUrls([])
       setPermutationCards([])
@@ -813,26 +1016,36 @@ export const EditorRoot: Component = () => {
       }
     })
 
-    const closeMenuOnOutsideInteraction = (event: PointerEvent): void => {
+    const closeMenusOnOutsideInteraction = (event: PointerEvent): void => {
       const target = event.target
-      if (
-        !target ||
-        !(target instanceof Node) ||
-        !isExportMenuOpen() ||
-        !exportMenuRef ||
-        !exportButtonRef
-      ) {
+      if (!target || !(target instanceof Node)) {
         return
       }
 
-      if (!exportMenuRef.contains(target) && !exportButtonRef.contains(target)) {
+      if (
+        isExportMenuOpen() &&
+        exportMenuRef &&
+        exportButtonRef &&
+        !exportMenuRef.contains(target) &&
+        !exportButtonRef.contains(target)
+      ) {
         closeExportMenu()
+      }
+
+      if (
+        isAdvancedMenuOpen() &&
+        advancedMenuRef &&
+        advancedButtonRef &&
+        !advancedMenuRef.contains(target) &&
+        !advancedButtonRef.contains(target)
+      ) {
+        closeAdvancedMenu()
       }
     }
 
-    window.addEventListener('pointerdown', closeMenuOnOutsideInteraction)
+    window.addEventListener('pointerdown', closeMenusOnOutsideInteraction)
     onCleanup(() => {
-      window.removeEventListener('pointerdown', closeMenuOnOutsideInteraction)
+      window.removeEventListener('pointerdown', closeMenusOnOutsideInteraction)
     })
 
     const updateViewportFromRef = (): void => {
@@ -865,6 +1078,8 @@ export const EditorRoot: Component = () => {
     const colorState = palette()
     const midpoint = sigmoidMidpoint()
     const strength = sigmoidStrength()
+    const limit = previewLimit()
+    const depth = previewPermutationDepth()
     const viewport = viewportSize()
 
     void state
@@ -872,6 +1087,8 @@ export const EditorRoot: Component = () => {
     void colorState
     void midpoint
     void strength
+    void limit
+    void depth
     void viewport
     if (viewport.width > 0 && viewport.height > 0) {
       scheduleLiveRender({ refreshCards: false })
@@ -879,16 +1096,21 @@ export const EditorRoot: Component = () => {
   })
 
   createEffect(() => {
-    setIsPermutationDrawerOpen(Boolean(assetId()) && palette().length >= 2)
+    persistSettings({
+      palette: palette(),
+      sigmoidMidpoint: sigmoidMidpoint(),
+      sigmoidStrength: sigmoidStrength(),
+      previewLimit: previewLimit(),
+      previewPermutationDepth: previewPermutationDepth(),
+      exportFormat: exportFormat(),
+      exportQuality: exportQuality(),
+      exportLongEdge: exportLongEdge(),
+      exportAllPermutations: exportAllPermutations(),
+    })
   })
 
   createEffect(() => {
-    void status()
-    void sourceDimensions()
-    void previewStats()
-    void exportStats()
-    void error()
-    void isRendering()
+    setIsPermutationDrawerOpen(Boolean(assetId()) && palette().length >= 2)
   })
 
   const openImageFromFile = (file: File): void => {
@@ -997,6 +1219,33 @@ export const EditorRoot: Component = () => {
     fileInputRef.click()
   }
 
+  const permutationReadyCount = (): number => {
+    const cards = permutationCards()
+    let ready = 0
+    for (const card of cards) {
+      if (card.url) {
+        ready += 1
+      }
+    }
+
+    return ready
+  }
+
+  const resetSettingsToDefaults = (): void => {
+    setPalette(initialPalette)
+    setSigmoidMidpoint(DEFAULT_SIGMOID_MIDPOINT)
+    setSigmoidStrength(DEFAULT_SIGMOID_STRENGTH)
+    setPreviewLimit(PERMUTATION_CARD_LIMIT)
+    setPreviewPermutationDepth(MAX_PERMUTATION_INPUT)
+    setExportFormat('png')
+    setExportQuality(DEFAULT_EXPORT_QUALITY)
+    setExportLongEdge(null)
+    setExportAllPermutations(false)
+    setIsAdvancedMenuOpen(false)
+    clearPersistedSettings()
+    scheduleLiveRender()
+  }
+
   onCleanup(() => {
     orchestrator.dispose()
     if (previewDebounceTimer !== undefined) {
@@ -1083,7 +1332,7 @@ export const EditorRoot: Component = () => {
                           )
                         }
                       >
-                        <For each={['jpeg', 'png', 'webp', 'avif', 'tiff'] as const}>
+                        <For each={exportFormats}>
                           {(format) => (
                             <option
                               value={format}
@@ -1130,7 +1379,7 @@ export const EditorRoot: Component = () => {
                           setExportAllPermutations(event.currentTarget.checked)
                         }
                       />
-                      <span>Export all permutations</span>
+                      <span>Export all previews</span>
                     </label>
 
                     <button
@@ -1157,6 +1406,9 @@ export const EditorRoot: Component = () => {
                 <p>Drop image to replace</p>
               </div>
             </Show>
+            <Show when={error()}>
+              {(message) => <p class="viewport-error">{message()}</p>}
+            </Show>
           </div>
         </section>
 
@@ -1164,16 +1416,34 @@ export const EditorRoot: Component = () => {
           class="panel permutations-panel"
           classList={{ open: isPermutationDrawerOpen() }}
         >
-          <h2>Permutations</h2>
+          <div class="permutations-header">
+            <h2>Previews</h2>
+            <Show when={permutationCards().length > 0}>
+              <span class="permutations-count">
+                {permutationReadyCount()}/{permutationCards().length}
+              </span>
+            </Show>
+          </div>
           <Show when={!assetId()}>
-            <p class="helper">Load an image to generate permutation previews.</p>
+            <p class="helper">Load an image to generate preview variants.</p>
           </Show>
           <Show when={assetId() && palette().length < 2}>
-            <p class="helper">Add a second color to generate permutations.</p>
+            <p class="helper">Add a second color to generate preview variants.</p>
+          </Show>
+          <Show
+            when={
+              assetId() &&
+              permutationCards().length > 0 &&
+              permutationReadyCount() < permutationCards().length
+            }
+          >
+            <p class="helper permutation-progress">
+              Rendering {permutationReadyCount()} of {permutationCards().length}
+            </p>
           </Show>
           <Show when={assetId() && palette().length >= 2}>
             <Show when={palette().length === 2}>
-              <p class="helper">Add one more color to generate permutations</p>
+              <p class="helper">Add one more color to generate preview variants</p>
             </Show>
 
             <div class="permutation-grid">
@@ -1196,7 +1466,13 @@ export const EditorRoot: Component = () => {
                     >
                       {(url) => <img src={url()} alt={card.label} />}
                     </Show>
-                    <span class="perm-label">{card.label}</span>
+                    <div class="perm-swatches" aria-hidden="true">
+                      <For each={card.colors}>
+                        {(color) => (
+                          <span style={{ 'background-color': rgbToHex(color) }} />
+                        )}
+                      </For>
+                    </div>
                   </button>
                 )}
               </For>
@@ -1221,7 +1497,7 @@ export const EditorRoot: Component = () => {
                 {(color, index) => (
                   <div class="palette-entry">
                     <label>
-                      <span>Color {index() + 1}</span>
+                      <span class="palette-label">#{index() + 1}</span>
                       <input
                         type="color"
                         value={rgbToHex(color)}
@@ -1263,39 +1539,103 @@ export const EditorRoot: Component = () => {
               <button onClick={addColor} disabled={palette().length >= MAX_COLORS}>
                 Add Color
               </button>
-            </div>
-          </section>
+              <button class="subtle" onClick={resetSettingsToDefaults}>
+                Defaults
+              </button>
 
-          <section class="toolbar-group">
-            <h3>Tweak</h3>
-            <label>
-              <span>Sigmoid midpoint ({sigmoidMidpoint().toFixed(2)})</span>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={sigmoidMidpoint()}
-                onInput={(event) => {
-                  setSigmoidMidpoint(Number(event.currentTarget.value))
-                  scheduleLiveRender()
-                }}
-              />
-            </label>
-            <label>
-              <span>Sigmoid strength ({sigmoidStrength().toFixed(2)})</span>
-              <input
-                type="range"
-                min={0.05}
-                max={4}
-                step={0.05}
-                value={sigmoidStrength()}
-                onInput={(event) => {
-                  setSigmoidStrength(Number(event.currentTarget.value))
-                  scheduleLiveRender()
-                }}
-              />
-            </label>
+              <div class="advanced-trigger-wrap">
+                <button
+                  ref={advancedButtonRef}
+                  class="advanced-trigger"
+                  onClick={handleAdvancedButtonToggle}
+                  aria-haspopup="true"
+                  aria-expanded={isAdvancedMenuOpen()}
+                >
+                  Advanced
+                </button>
+
+                <Show when={isAdvancedMenuOpen()}>
+                  <div
+                    class="advanced-panel"
+                    ref={advancedMenuRef}
+                    role="menu"
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') {
+                        closeAdvancedMenu()
+                      }
+                    }}
+                  >
+                    <label>
+                      <span>Sigmoid midpoint ({sigmoidMidpoint().toFixed(2)})</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={sigmoidMidpoint()}
+                        onInput={(event) => {
+                          setSigmoidMidpoint(Number(event.currentTarget.value))
+                          scheduleLiveRender()
+                        }}
+                      />
+                    </label>
+                    <label>
+                      <span>Sigmoid strength ({sigmoidStrength().toFixed(2)})</span>
+                      <input
+                        type="range"
+                        min={0.05}
+                        max={4}
+                        step={0.05}
+                        value={sigmoidStrength()}
+                        onInput={(event) => {
+                          setSigmoidStrength(Number(event.currentTarget.value))
+                          scheduleLiveRender()
+                        }}
+                      />
+                    </label>
+                    <label>
+                      <span>Preview count ({previewLimit()})</span>
+                      <input
+                        type="range"
+                        min={MIN_PREVIEW_LIMIT}
+                        max={MAX_PREVIEW_LIMIT}
+                        step={1}
+                        value={previewLimit()}
+                        onInput={(event) => {
+                          setPreviewLimit(Number(event.currentTarget.value))
+                          scheduleLiveRender()
+                        }}
+                      />
+                    </label>
+                    <label>
+                      <span>
+                        Permutation depth (
+                        {Math.min(
+                          palette().length,
+                          MAX_PERMUTATION_INPUT,
+                          Math.max(2, previewPermutationDepth())
+                        )}
+                        )
+                      </span>
+                      <input
+                        type="range"
+                        min={2}
+                        max={Math.max(2, Math.min(palette().length, MAX_PERMUTATION_INPUT))}
+                        step={1}
+                        value={Math.min(
+                          Math.max(2, previewPermutationDepth()),
+                          Math.max(2, Math.min(palette().length, MAX_PERMUTATION_INPUT))
+                        )}
+                        onInput={(event) => {
+                          setPreviewPermutationDepth(Number(event.currentTarget.value))
+                          scheduleLiveRender()
+                        }}
+                      />
+                    </label>
+                  </div>
+                </Show>
+              </div>
+            </div>
           </section>
 
         </div>
