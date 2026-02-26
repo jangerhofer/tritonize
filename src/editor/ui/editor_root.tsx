@@ -941,7 +941,10 @@ export const EditorRoot: Component = () => {
         </div>
       </header>
 
-      <section class="editor-viewport-wrap">
+      <section
+        class="editor-viewport-wrap"
+        classList={{ 'drawer-open': isPermutationDrawerOpen() }}
+      >
         <section class="panel viewport-panel">
           <div class="viewport-header">
             <h2>Preview</h2>
@@ -981,6 +984,50 @@ export const EditorRoot: Component = () => {
             </Show>
           </div>
         </section>
+
+        <aside
+          class="panel permutations-panel"
+          classList={{ open: isPermutationDrawerOpen() }}
+        >
+          <h2>Permutations</h2>
+          <Show when={!assetId()}>
+            <p class="helper">Load an image to generate permutation previews.</p>
+          </Show>
+          <Show when={assetId() && palette().length < 2}>
+            <p class="helper">Add a second color to generate permutations.</p>
+          </Show>
+          <Show when={assetId() && palette().length >= 2}>
+            <Show when={palette().length === 2}>
+              <p class="helper">Add one more color to generate permutations</p>
+            </Show>
+
+            <div class="permutation-grid">
+              <For each={permutationCards()}>
+                {(card) => (
+                  <button
+                    classList={{
+                      'perm-card': true,
+                      selected: card.selected,
+                    }}
+                    onClick={() => applyPalette(card.colors)}
+                  >
+                    <Show
+                      when={card.url}
+                      fallback={
+                        <div class="perm-fallback">
+                          <span>{card.loading ? 'Preparing…' : 'Unavailable'}</span>
+                        </div>
+                      }
+                    >
+                      {(url) => <img src={url()} alt={card.label} />}
+                    </Show>
+                    <span class="perm-label">{card.label}</span>
+                  </button>
+                )}
+              </For>
+            </div>
+          </Show>
+        </aside>
       </section>
       <input
         ref={fileInputRef}
@@ -989,50 +1036,6 @@ export const EditorRoot: Component = () => {
         accept={FILE_INPUT_ACCEPT}
         onChange={handleOpenImage}
       />
-
-      <aside
-        class="panel permutations-panel"
-        classList={{ open: isPermutationDrawerOpen() }}
-      >
-        <h2>Permutations</h2>
-        <Show when={!assetId()}>
-          <p class="helper">Load an image to generate permutation previews.</p>
-        </Show>
-        <Show when={assetId() && palette().length < 2}>
-          <p class="helper">Add a second color to generate permutations.</p>
-        </Show>
-        <Show when={assetId() && palette().length >= 2}>
-          <Show when={palette().length === 2}>
-            <p class="helper">Add one more color to generate permutations</p>
-          </Show>
-
-          <div class="permutation-grid">
-            <For each={permutationCards()}>
-              {(card) => (
-                <button
-                  classList={{
-                    'perm-card': true,
-                    selected: card.selected,
-                  }}
-                  onClick={() => applyPalette(card.colors)}
-                >
-                  <Show
-                    when={card.url}
-                    fallback={
-                      <div class="perm-fallback">
-                        <span>{card.loading ? 'Preparing…' : 'Unavailable'}</span>
-                      </div>
-                    }
-                  >
-                    {(url) => <img src={url()} alt={card.label} />}
-                  </Show>
-                  <span class="perm-label">{card.label}</span>
-                </button>
-              )}
-            </For>
-          </div>
-        </Show>
-      </aside>
 
       <footer class="editor-toolbar panel">
         <div class="toolbar-groups">
