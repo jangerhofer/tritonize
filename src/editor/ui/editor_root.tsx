@@ -828,10 +828,8 @@ export const EditorRoot: Component = () => {
 
       <div class="editor-layout">
         <aside class="panel controls-panel">
-          <h2>Tritonizer Controls</h2>
 
           <section>
-            <h3>Palette</h3>
             <div class="palette-grid">
               <For each={palette()}>
                 {(color, index) => (
@@ -879,14 +877,10 @@ export const EditorRoot: Component = () => {
               <button onClick={addColor} disabled={palette().length >= MAX_COLORS}>
                 Add Color
               </button>
-              <span class="helper">
-                Palette size: {palette().length}/{MAX_COLORS}
-              </span>
             </div>
           </section>
 
           <section>
-            <h3>Threshold Curve</h3>
             <label>
               <span>Sigmoid midpoint ({sigmoidMidpoint().toFixed(2)})</span>
               <input
@@ -917,8 +911,7 @@ export const EditorRoot: Component = () => {
             </label>
           </section>
 
-          <section>
-            <h3>Export</h3>
+          <section class="tight-section">
             <label>
               <span>Format</span>
               <select
@@ -984,11 +977,11 @@ export const EditorRoot: Component = () => {
 
         <section class="panel viewport-panel">
           <div class="viewport-header">
-            <h2>Live Tritonizer Preview</h2>
-          <span class="status-chip" classList={{ ready: !isRendering(), rendering: isRendering() }}>
-            <span class="live-dot" />
-            {isRendering() ? 'Live' : 'Ready'}
-          </span>
+            <h2>Preview</h2>
+            <span class="status-chip" classList={{ ready: !isRendering(), rendering: isRendering() }}>
+              <span class="live-dot" />
+              {isRendering() ? 'Live' : 'Ready'}
+            </span>
           </div>
           <div class="viewport" ref={viewportRef}>
             <canvas ref={canvasRef} />
@@ -996,7 +989,7 @@ export const EditorRoot: Component = () => {
         </section>
 
         <aside class="panel permutations-panel">
-          <h2>Color Permutations</h2>
+          <h2>Permutations</h2>
           <p class="helper">
             {palette().length > 2
               ? 'GPU-first: every order is a different map. We preview the first variants live.'

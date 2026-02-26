@@ -147,28 +147,25 @@
 }
 
 .panel h2 {
-  margin: 0 0 0.84rem;
+  margin: 0 0 0.58rem;
   font-size: clamp(1.02rem, 2vw, 1.18rem);
   letter-spacing: -0.015em;
 }
 
-.panel h3 {
-  margin: 0 0 0.58rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #b2bfd1;
-  font-size: 0.76rem;
-}
-
-.controls-panel section {
-  margin-bottom: 1rem;
-  padding-bottom: 1rem;
+ .controls-panel section {
+  margin-bottom: 0.8rem;
+  padding-bottom: 0.8rem;
   border-bottom: 1px dashed var(--border-soft);
 }
 
 .controls-panel section:last-child {
   border-bottom: 0;
   margin-bottom: 0;
+}
+
+.controls-panel section.tight-section {
+  margin-bottom: 0;
+  padding-bottom: 0;
 }
 
 .controls-panel label {
