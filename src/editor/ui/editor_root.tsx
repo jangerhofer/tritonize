@@ -302,13 +302,18 @@ export const EditorRoot: Component = () => {
     createSignal<'jpeg' | 'png' | 'webp' | 'avif' | 'tiff'>('png')
   const [exportQuality, setExportQuality] = createSignal(0.92)
   const [exportLongEdge, setExportLongEdge] = createSignal<number | null>(null)
+  const [exportAllPermutations, setExportAllPermutations] =
+    createSignal(false)
   const [viewportSize, setViewportSize] = createSignal({ width: 960, height: 640 })
   const [isPermutationDrawerOpen, setIsPermutationDrawerOpen] = createSignal(false)
   const [isDragActive, setIsDragActive] = createSignal(false)
+  const [isExportMenuOpen, setIsExportMenuOpen] = createSignal(false)
 
   let viewportRef: HTMLDivElement | undefined
   let canvasRef: HTMLCanvasElement | undefined
   let fileInputRef: HTMLInputElement | undefined
+  let exportMenuRef: HTMLDivElement | undefined
+  let exportButtonRef: HTMLButtonElement | undefined
   let previewDebounceTimer: number | undefined
   let permutationDebounceTimer: number | undefined
   let latestPreviewRequest = 0
@@ -662,6 +667,30 @@ export const EditorRoot: Component = () => {
     scheduleLiveRender()
   }
 
+  const buildExportOptions = () => {
+    const format = exportFormat()
+    const maybeQuality =
+      format === 'png' || format === 'tiff' ? undefined : exportQuality()
+    const maybeTargetLongEdge = exportLongEdge() ?? undefined
+
+    return decodeUnknownSync(ExportOptionsSchema, {
+      format,
+      colorProfile: 'srgb',
+      metadataPolicy: 'preserve-when-possible',
+      ...(maybeQuality === undefined ? {} : { quality: maybeQuality }),
+      ...(maybeTargetLongEdge === undefined ? {} : { targetLongEdge: maybeTargetLongEdge }),
+    })
+  }
+
+  const buildExportTargets = (): readonly (readonly RGB[])[] => {
+    const basePalette = normalizePaletteForRender(palette())
+    if (exportAllPermutations() && basePalette.length >= 2) {
+      return buildPermutationCards(basePalette, basePalette).map((card) => card.colors)
+    }
+
+    return [basePalette]
+  }
+
   const requestExport = async (): Promise<void> => {
     const state = graphState()
     const currentAssetId = assetId()
@@ -679,33 +708,43 @@ export const EditorRoot: Component = () => {
     setIsExporting(true)
     setError(null)
 
+    const normalizedTargets = buildExportTargets()
+    const options = buildExportOptions()
+    let exportMs = 0
+    let exportBytes = 0
+
     try {
-      const maybeQuality =
-        format === 'png' || format === 'tiff' ? undefined : exportQuality()
-      const maybeTargetLongEdge = exportLongEdge() ?? undefined
-      const options = decodeUnknownSync(ExportOptionsSchema, {
-        format,
-        colorProfile: 'srgb',
-        metadataPolicy: 'preserve-when-possible',
-        ...(maybeQuality === undefined ? {} : { quality: maybeQuality }),
-        ...(maybeTargetLongEdge === undefined ? {} : { targetLongEdge: maybeTargetLongEdge }),
-      })
+      for (let i = 0; i < normalizedTargets.length; i += 1) {
+        const targetPalette = normalizedTargets[i]
+        if (!targetPalette) {
+          continue
+        }
 
-      const result = await orchestrator.queueExport({
-        assetId: currentAssetId,
-        nodePath: createTritonizerPath(state, params(), normalizePaletteForRender(palette())),
-        exportOptions: options,
-      })
+        const result = await orchestrator.queueExport({
+          assetId: currentAssetId,
+          nodePath: createTritonizerPath(state, params(), targetPalette),
+          exportOptions: options,
+        })
 
-      const url = URL.createObjectURL(result.blob)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = `tritonizer-${format === 'jpeg' ? 'jpg' : format}`
-      anchor.click()
-      URL.revokeObjectURL(url)
+        exportMs = Math.round(result.stats.elapsedMs)
+        exportBytes += result.blob.size
+
+        const fileSuffix =
+          normalizedTargets.length > 1
+            ? `-${i + 1}-of-${normalizedTargets.length}`
+            : ''
+        const url = URL.createObjectURL(result.blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = `tritonizer${fileSuffix}.${format === 'jpeg' ? 'jpg' : format}`
+        anchor.click()
+        URL.revokeObjectURL(url)
+      }
 
       setExportStats(
-        `${result.stats.backend} ${Math.round(result.stats.elapsedMs)}ms (${Math.round(result.blob.size / 1024)} KB)`
+        normalizedTargets.length > 1
+          ? `Exported ${normalizedTargets.length} images (${Math.round(exportBytes / 1024)} KB)`
+          : `${format.toUpperCase()} ${exportMs}ms (${Math.round(exportBytes / 1024)} KB)`
       )
     } catch (exportError) {
       setError(
@@ -713,7 +752,26 @@ export const EditorRoot: Component = () => {
       )
     } finally {
       setIsExporting(false)
+      setIsExportMenuOpen(false)
     }
+  }
+
+  const isExportControlDisabled = (): boolean => !graphState() || isExporting()
+  const isExportAllPermutationsDisabled = (): boolean =>
+    isExportControlDisabled() || palette().length < 2
+
+  const handleExportButtonToggle = (event: Event): void => {
+    if (isExportControlDisabled()) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    setIsExportMenuOpen((open) => !open)
+  }
+
+  const closeExportMenu = (): void => {
+    setIsExportMenuOpen(false)
   }
 
   const handleFileLoad = async (blob: Blob): Promise<void> => {
@@ -753,6 +811,28 @@ export const EditorRoot: Component = () => {
           setExportFormat('jpeg')
         }
       }
+    })
+
+    const closeMenuOnOutsideInteraction = (event: PointerEvent): void => {
+      const target = event.target
+      if (
+        !target ||
+        !(target instanceof Node) ||
+        !isExportMenuOpen() ||
+        !exportMenuRef ||
+        !exportButtonRef
+      ) {
+        return
+      }
+
+      if (!exportMenuRef.contains(target) && !exportButtonRef.contains(target)) {
+        closeExportMenu()
+      }
+    }
+
+    window.addEventListener('pointerdown', closeMenuOnOutsideInteraction)
+    onCleanup(() => {
+      window.removeEventListener('pointerdown', closeMenuOnOutsideInteraction)
     })
 
     const updateViewportFromRef = (): void => {
@@ -958,6 +1038,20 @@ export const EditorRoot: Component = () => {
                 <p>or click to choose a file</p>
               </div>
             </Show>
+    <Show when={assetId()}>
+              <button
+                class="viewport-export-icon"
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  handleExportButtonToggle(event)
+                }}
+                title="Export options"
+                aria-label="Open export options"
+              >
+                <span aria-hidden="true">⤓</span>
+              </button>
+            </Show>
             <Show when={isDragActive() && !assetId()}>
               <div class="viewport-overlay drag">
                 <p>Drop image to load</p>
@@ -1111,66 +1205,107 @@ export const EditorRoot: Component = () => {
 
           <section class="toolbar-group">
             <h3>Export</h3>
-            <label>
-              <span>Format</span>
-              <select
-                value={exportFormat()}
-                onChange={(event) =>
-                  setExportFormat(
-                    event.currentTarget.value as
-                      | 'jpeg'
-                      | 'png'
-                      | 'webp'
-                      | 'avif'
-                      | 'tiff'
-                  )
-                }
+            <div class="export-menu-wrapper">
+              <button
+                ref={exportButtonRef}
+                class="primary"
+                onClick={handleExportButtonToggle}
+                aria-haspopup="true"
+                aria-expanded={isExportMenuOpen()}
+                disabled={isExportControlDisabled()}
               >
-                <For each={['jpeg', 'png', 'webp', 'avif', 'tiff'] as const}>
-                  {(format) => (
-                    <option
-                      value={format}
-                      disabled={!capabilityForFormat(capabilities(), format)}
+                {isExporting() ? 'Exporting…' : 'Export'}
+              </button>
+
+              <Show when={isExportMenuOpen()}>
+                <div
+                  class="export-tooltip"
+                  ref={exportMenuRef}
+                  role="menu"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      closeExportMenu()
+                    }
+                  }}
+                >
+                  <label>
+                    <span>Format</span>
+                    <select
+                      value={exportFormat()}
+                      onChange={(event) =>
+                        setExportFormat(
+                          event.currentTarget.value as
+                            | 'jpeg'
+                            | 'png'
+                            | 'webp'
+                            | 'avif'
+                            | 'tiff'
+                        )
+                      }
                     >
-                      {format.toUpperCase()}
-                    </option>
-                  )}
-                </For>
-              </select>
-            </label>
+                      <For each={['jpeg', 'png', 'webp', 'avif', 'tiff'] as const}>
+                        {(format) => (
+                          <option
+                            value={format}
+                            disabled={!capabilityForFormat(capabilities(), format)}
+                          >
+                            {format.toUpperCase()}
+                          </option>
+                        )}
+                      </For>
+                    </select>
+                  </label>
 
-            <label>
-              <span>Quality ({exportQuality().toFixed(2)})</span>
-              <input
-                type="range"
-                min="0.1"
-                max="1"
-                step="0.01"
-                value={exportQuality()}
-                onInput={(event) => setExportQuality(Number(event.currentTarget.value))}
-              />
-            </label>
+                  <label>
+                    <span>Quality ({exportQuality().toFixed(2)})</span>
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="1"
+                      step="0.01"
+                      value={exportQuality()}
+                      onInput={(event) => setExportQuality(Number(event.currentTarget.value))}
+                    />
+                  </label>
 
-            <label>
-              <span>Target long edge (px)</span>
-              <input
-                type="number"
-                placeholder="auto"
-                value={exportLongEdge() ?? ''}
-                onInput={(event) => {
-                  const value = event.currentTarget.value
-                  setExportLongEdge(value === '' ? null : Number(value))
-                }}
-              />
-            </label>
+                  <label>
+                    <span>Target long edge (px)</span>
+                    <input
+                      type="number"
+                      placeholder="auto"
+                      value={exportLongEdge() ?? ''}
+                      onInput={(event) => {
+                        const value = event.currentTarget.value
+                        setExportLongEdge(value === '' ? null : Number(value))
+                      }}
+                    />
+                  </label>
 
-            <button
-              class="primary"
-              onClick={() => void requestExport()}
-              disabled={!graphState() || isExporting()}
-            >
-              {isExporting() ? 'Exporting...' : 'Export Current'}
-            </button>
+                  <label class="export-all-option">
+                    <input
+                      type="checkbox"
+                      checked={exportAllPermutations()}
+                      disabled={isExportAllPermutationsDisabled()}
+                      onChange={(event) =>
+                        setExportAllPermutations(event.currentTarget.checked)
+                      }
+                    />
+                    <span>Export all permutations</span>
+                  </label>
+
+                  <button
+                    class="primary"
+                    onClick={() => {
+                      closeExportMenu()
+                      void requestExport()
+                    }}
+                    disabled={isExportControlDisabled()}
+                  >
+                    {exportAllPermutations() ? 'Export all' : 'Export'}
+                  </button>
+                </div>
+              </Show>
+            </div>
           </section>
         </div>
       </footer>

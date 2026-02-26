@@ -140,6 +140,79 @@
   font-size: 0.84rem;
 }
 
+.toolbar-group h3 + .export-menu-wrapper {
+  margin-top: 0.15rem;
+}
+
+.export-menu-wrapper {
+  position: relative;
+}
+
+.export-menu-wrapper button {
+  min-width: 118px;
+}
+
+.export-tooltip {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 0.55rem);
+  width: 250px;
+  display: grid;
+  gap: 0.56rem;
+  padding: 0.72rem;
+  border-radius: 0.86rem;
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(140deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 2%)),
+    rgb(9 14 22 / 83%);
+  backdrop-filter: blur(12px);
+  box-shadow:
+    0 14px 38px rgb(0 0 0 / 35%),
+    inset 0 1px 0 rgb(255 255 255 / 8%);
+  z-index: 5;
+  animation: fadeIn 140ms ease;
+}
+
+.export-tooltip label {
+  margin-bottom: 0.32rem;
+}
+
+.export-tooltip label span {
+  margin-bottom: 0.16rem;
+  font-size: 0.74rem;
+}
+
+.export-all-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.08rem;
+  user-select: none;
+}
+
+.export-all-option span {
+  font-size: 0.74rem;
+  margin-bottom: 0;
+  color: var(--text-muted);
+}
+
+.export-tooltip select,
+.export-tooltip input {
+  width: 100%;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .palette-grid {
   display: flex;
   flex-direction: column;
@@ -385,6 +458,31 @@ input[type='number'] {
   color: #e8f0ff;
   border-color: rgb(122 141 255 / 46%);
   background: rgb(122 141 255 / 14%);
+}
+
+.viewport-export-icon {
+  position: absolute;
+  right: 0.85rem;
+  top: 0.85rem;
+  z-index: 3;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(130deg, rgb(122 141 255 / 84%), rgb(122 141 255 / 46%));
+  padding: 0;
+  color: #f4f7ff;
+  font-size: 1rem;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  box-shadow: 0 10px 24px rgb(5 8 15 / 48%);
+}
+
+.viewport-export-icon:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgb(122 141 255 / 25%);
 }
 
 .viewport-overlay p {
