@@ -14,6 +14,7 @@ interface TritonizerParams {
   readonly sigmoidStrength: number
 }
 
+// Values passed directly to the Tritonizer shader.
 interface WebGLUniforms {
   readonly image: WebGLUniformLocation
   readonly colorCount: WebGLUniformLocation
@@ -79,6 +80,7 @@ const FRAGMENT_SHADER_SOURCE = `
   }
 `
 
+// Interleaved fullscreen quad (position + UV) for fragment-only processing.
 const QUAD_POSITION_BUFFER = new Float32Array([
   -1,
   -1,
@@ -118,6 +120,7 @@ function createShader(
   return shader
 }
 
+// Compile both stages, link once, and fail early if either compile/link stage breaks.
 function createProgram(
   gl: WebGL2RenderingContext,
   vertexSource: string,
@@ -145,6 +148,8 @@ function createProgram(
   return program
 }
 
+// Build long-lived WebGL state (program + buffers + attribute/uniform locations).
+// Returns null when the GPU path is unavailable so callers can downshift to CPU.
 function createState(canvas: OffscreenCanvas): WebGLState | null {
   const gl = canvas.getContext('webgl2', {
     antialias: false,
@@ -209,6 +214,7 @@ function withWebGLFallback(
   params: TritonizerParams,
   state: WebGLState | null
 ): ImageBitmap {
+  // If the backend could not initialize GPU state, execute on CPU immediately.
   if (!state) {
     return applyCanvasOperation(source, {
       type: 'tritonizer',
@@ -226,6 +232,7 @@ function withWebGLFallback(
   } = state
   let texture: WebGLTexture | null = null
 
+  // Clamp source dimensions and palette size to backend limits.
   const width = Math.max(1, source.width)
   const height = Math.max(1, source.height)
   const colorCount = Math.min(params.colors.length, 16)
@@ -238,17 +245,20 @@ function withWebGLFallback(
 
   try {
     const canvas = gl.canvas as OffscreenCanvas
+    // Stage 1: match output buffer to input dimensions and bind viewport.
     canvas.width = width
     canvas.height = height
     gl.viewport(0, 0, width, height)
     gl.useProgram(program)
 
+    // Stage 2: bind fullscreen geometry stream for the draw pass.
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer)
     gl.enableVertexAttribArray(positionLocation)
     gl.enableVertexAttribArray(texCoordLocation)
     gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 16, 0)
     gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 16, 8)
 
+    // Allocate one transient texture for this draw call.
     texture = gl.createTexture()
     if (!texture) {
       return applyCanvasOperation(source, {
@@ -257,18 +267,26 @@ function withWebGLFallback(
       })
     }
 
+    // Stage 3: upload source image as input texture.
     gl.bindTexture(gl.TEXTURE_2D, texture)
+
+    // Clamp edges and use linear sampling to match existing preview scaling behavior.
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+    // Upload the source bitmap into GPU texture memory.
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source)
 
+    // Stage 4: push operation parameters/palette to shader uniforms.
+    // Sampler binding maps u_image to texture unit 0.
     gl.uniform1i(uniforms.image, 0)
+    // Scalar control values shape the sigmoid partitioning and output quantization.
     gl.uniform1i(uniforms.colorCount, colorCount)
     gl.uniform1f(uniforms.sigmoidMidpoint, params.sigmoidMidpoint)
     gl.uniform1f(uniforms.sigmoidStrength, params.sigmoidStrength)
 
+    // Pack palette entries as normalized floats into fixed-size vec3 array.
     const colorArray = new Float32Array(16 * 3)
     for (let i = 0; i < colorCount; i += 1) {
       const color = params.colors[i]
@@ -281,16 +299,20 @@ function withWebGLFallback(
       colorArray[i * 3 + 2] = color[2] / 255
     }
 
+    // Stage 5: emit the fragment shader full-frame pass.
     gl.uniform3fv(uniforms.colors, colorArray)
+    // Four-vertex strip spans clip space and invokes one fragment pass for the whole image.
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
     return canvas.transferToImageBitmap()
   } catch {
+    // Any GL failure falls back to CPU to keep behavior deterministic.
     return applyCanvasOperation(source, {
       type: 'tritonizer',
       params,
     })
   } finally {
+    // Ensure transient texture is cleaned up even when returning via fallback/error.
     if (texture) {
       gl.deleteTexture(texture)
     }
@@ -310,6 +332,7 @@ function applyOperations(
       break
     }
 
+    // Tritonizer uses the GPU path; non-tritonizer ops currently use canvas fallback.
     const next = operationIsTritonizer(operation)
       ? withWebGLFallback(current, operation.params, state)
       : applyCanvasOperation(current, operation)
@@ -332,9 +355,11 @@ export class WebGL2Backend implements RendererBackend {
 
   constructor() {
     this.canvas = new OffscreenCanvas(1, 1)
+    // Single reusable context/state for the editor lifetime.
     this.state = createState(this.canvas)
   }
 
+  // Serialize GPU work so commands never run concurrently against one shared context.
   private withLock<T>(task: () => Promise<T> | T): Promise<T> {
     const next = this.queue.then(() => task())
     this.queue = next.then(
@@ -345,6 +370,7 @@ export class WebGL2Backend implements RendererBackend {
   }
 
   async renderPreview(input: RenderPreviewInput) {
+    // Apply all operations first, then downscale/pad result to requested viewport.
     const startedAt = performance.now()
     const fitted = await this.withLock(async () => {
       const rendered = applyOperations(
@@ -370,6 +396,7 @@ export class WebGL2Backend implements RendererBackend {
   }
 
   async renderExport(input: RenderExportInput) {
+    // Export renders from the operation chain at source quality, then encodes.
     const startedAt = performance.now()
     const result = await this.withLock(async () => {
       const rendered = applyOperations(
@@ -403,6 +430,7 @@ export class WebGL2Backend implements RendererBackend {
   }
 
   dispose(): void {
+    // Cleanly release GPU state at teardown to avoid lingering WebGL context pressure.
     if (!this.state) {
       return
     }
