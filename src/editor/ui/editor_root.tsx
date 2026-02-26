@@ -35,6 +35,14 @@ const PERMUTATION_VIEWPORT = 200
 const PREVIEW_DEBOUNCE_MS = 12
 const PERMUTATION_DEBOUNCE_MS = 95
 
+const devicePixelRatio = (): number => {
+  if (typeof window === 'undefined') {
+    return 1
+  }
+
+  return Number.isFinite(window.devicePixelRatio) ? Math.max(1, window.devicePixelRatio) : 1
+}
+
 interface Permutation {
   readonly id: string
   readonly colors: readonly RGB[]
@@ -282,14 +290,23 @@ export const EditorRoot: Component = () => {
     setPermutationCards(nextCards)
   }
 
-  const drawPreviewBitmap = (bitmap: ImageBitmap): void => {
+  const drawPreviewBitmap = (
+    bitmap: ImageBitmap,
+    cssWidth: number,
+    cssHeight: number
+  ): void => {
     if (!canvasRef) {
       bitmap.close()
       return
     }
 
+    const safeCssWidth = Math.max(1, Math.floor(cssWidth))
+    const safeCssHeight = Math.max(1, Math.floor(cssHeight))
+
     canvasRef.width = bitmap.width
     canvasRef.height = bitmap.height
+    canvasRef.style.width = `${safeCssWidth}px`
+    canvasRef.style.height = `${safeCssHeight}px`
 
     const context = canvasRef.getContext('2d')
     if (!context) {
@@ -304,11 +321,17 @@ export const EditorRoot: Component = () => {
   const requestBitmapToDataUrl = async (
     bitmap: ImageBitmap,
     width: number,
-    height: number
+    height: number,
+    cssWidth: number,
+    cssHeight: number
   ): Promise<string> => {
     const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
+    const safeCssWidth = Math.max(1, Math.floor(cssWidth))
+    const safeCssHeight = Math.max(1, Math.floor(cssHeight))
+    canvas.width = Math.max(1, Math.floor(width))
+    canvas.height = Math.max(1, Math.floor(height))
+    canvas.style.width = `${safeCssWidth}px`
+    canvas.style.height = `${safeCssHeight}px`
 
     const context = canvas.getContext('2d')
     if (!context) {
@@ -353,11 +376,17 @@ export const EditorRoot: Component = () => {
     setIsRendering(true)
 
     try {
+      const scale = devicePixelRatio()
+      const cssWidth = width
+      const cssHeight = height
+      const renderWidth = Math.max(1, Math.floor(width * scale))
+      const renderHeight = Math.max(1, Math.floor(height * scale))
+
       const result = await orchestrator.renderPreview({
         assetId: currentAssetId,
         nodePath: path,
-        width,
-        height,
+        width: renderWidth,
+        height: renderHeight,
         zoom: 1,
         panX: 0,
         panY: 0,
@@ -368,7 +397,7 @@ export const EditorRoot: Component = () => {
         return
       }
 
-      drawPreviewBitmap(result.bitmap)
+      drawPreviewBitmap(result.bitmap, cssWidth, cssHeight)
       setPreviewStats(
         `${result.stats.backend} ${Math.round(result.stats.elapsedMs)}ms @ ${result.stats.width}x${result.stats.height}`
       )
@@ -423,8 +452,8 @@ export const EditorRoot: Component = () => {
         const result = await orchestrator.renderPreview({
           assetId: currentAssetId,
           nodePath: createTritonizerPath(state, params, card.colors),
-          width: PERMUTATION_VIEWPORT,
-          height: PERMUTATION_VIEWPORT,
+          width: Math.floor(PERMUTATION_VIEWPORT * devicePixelRatio()),
+          height: Math.floor(PERMUTATION_VIEWPORT * devicePixelRatio()),
           zoom: 1,
           panX: 0,
           panY: 0,
@@ -437,6 +466,8 @@ export const EditorRoot: Component = () => {
 
         const url = await requestBitmapToDataUrl(
           result.bitmap,
+          result.bitmap.width,
+          result.bitmap.height,
           PERMUTATION_VIEWPORT,
           PERMUTATION_VIEWPORT
         )
