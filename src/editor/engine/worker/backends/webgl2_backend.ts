@@ -14,6 +14,90 @@ interface TritonizerParams {
   readonly sigmoidStrength: number
 }
 
+interface WebGLUniforms {
+  readonly image: WebGLUniformLocation
+  readonly colorCount: WebGLUniformLocation
+  readonly sigmoidMidpoint: WebGLUniformLocation
+  readonly sigmoidStrength: WebGLUniformLocation
+  readonly colors: WebGLUniformLocation
+}
+
+interface WebGLState {
+  readonly gl: WebGL2RenderingContext
+  readonly program: WebGLProgram
+  readonly vertexBuffer: WebGLBuffer
+  readonly positionLocation: number
+  readonly texCoordLocation: number
+  readonly uniforms: WebGLUniforms
+}
+
+const VERTEX_SHADER_SOURCE = `
+  attribute vec2 a_position;
+  attribute vec2 a_texCoord;
+  varying vec2 v_texCoord;
+
+  void main() {
+    gl_Position = vec4(a_position, 0.0, 1.0);
+    v_texCoord = a_texCoord;
+  }
+`
+
+const FRAGMENT_SHADER_SOURCE = `
+  precision mediump float;
+
+  uniform sampler2D u_image;
+  uniform vec3 u_colors[16];
+  uniform int u_colorCount;
+  uniform float u_sigmoidMidpoint;
+  uniform float u_sigmoidStrength;
+  varying vec2 v_texCoord;
+
+  float sigmoid(float x, float midpoint, float strength) {
+    return 1.0 / (1.0 + exp(-((x - midpoint) / max(0.01, strength))));
+  }
+
+  void main() {
+    vec4 color = texture2D(u_image, v_texCoord);
+    float gray = color.r * 0.299 + color.g * 0.587 + color.b * 0.114;
+    float threshold = sigmoid(gray, u_sigmoidMidpoint, u_sigmoidStrength * 0.125);
+
+    float indexFloat = floor(threshold * float(u_colorCount));
+    int index = int(indexFloat);
+    if (index >= u_colorCount) {
+      index = u_colorCount - 1;
+    }
+
+    vec3 mapped = u_colors[0];
+    for (int i = 0; i < 16; i++) {
+      if (i == index) {
+        mapped = u_colors[i];
+        break;
+      }
+    }
+
+    gl_FragColor = vec4(mapped, 1.0);
+  }
+`
+
+const QUAD_POSITION_BUFFER = new Float32Array([
+  -1,
+  -1,
+  0,
+  1,
+  1,
+  -1,
+  1,
+  1,
+  -1,
+  1,
+  0,
+  0,
+  1,
+  1,
+  1,
+  0,
+])
+
 function createShader(
   gl: WebGL2RenderingContext,
   type: number,
@@ -61,11 +145,7 @@ function createProgram(
   return program
 }
 
-function applyTritonizerWebGL(
-  source: ImageBitmap,
-  params: TritonizerParams
-): ImageBitmap {
-  const canvas = new OffscreenCanvas(source.width, source.height)
+function createState(canvas: OffscreenCanvas): WebGLState | null {
   const gl = canvas.getContext('webgl2', {
     antialias: false,
     alpha: false,
@@ -73,155 +153,155 @@ function applyTritonizerWebGL(
   })
 
   if (!gl) {
+    return null
+  }
+
+  const program = createProgram(gl, VERTEX_SHADER_SOURCE, FRAGMENT_SHADER_SOURCE)
+
+  const positionLocation = gl.getAttribLocation(program, 'a_position')
+  const texCoordLocation = gl.getAttribLocation(program, 'a_texCoord')
+  const imageLocation = gl.getUniformLocation(program, 'u_image')
+  const colorCountLocation = gl.getUniformLocation(program, 'u_colorCount')
+  const sigmoidMidpointLocation = gl.getUniformLocation(program, 'u_sigmoidMidpoint')
+  const sigmoidStrengthLocation = gl.getUniformLocation(program, 'u_sigmoidStrength')
+  const colorsLocation = gl.getUniformLocation(program, 'u_colors')
+
+  if (
+    positionLocation < 0 ||
+    texCoordLocation < 0 ||
+    imageLocation === null ||
+    colorCountLocation === null ||
+    sigmoidMidpointLocation === null ||
+    sigmoidStrengthLocation === null ||
+    colorsLocation === null
+  ) {
+    gl.deleteProgram(program)
+    return null
+  }
+
+  const vertexBuffer = gl.createBuffer()
+  if (!vertexBuffer) {
+    gl.deleteProgram(program)
+    return null
+  }
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, QUAD_POSITION_BUFFER, gl.STATIC_DRAW)
+
+  return {
+    gl,
+    program,
+    vertexBuffer,
+    positionLocation,
+    texCoordLocation,
+    uniforms: {
+      image: imageLocation,
+      colorCount: colorCountLocation,
+      sigmoidMidpoint: sigmoidMidpointLocation,
+      sigmoidStrength: sigmoidStrengthLocation,
+      colors: colorsLocation,
+    },
+  }
+}
+
+function withWebGLFallback(
+  source: ImageBitmap,
+  params: TritonizerParams,
+  state: WebGLState | null
+): ImageBitmap {
+  if (!state) {
     return applyCanvasOperation(source, {
       type: 'tritonizer',
       params,
     })
   }
 
-  const vertexSource = `
-    attribute vec2 a_position;
-    attribute vec2 a_texCoord;
-    varying vec2 v_texCoord;
-    void main() {
-      gl_Position = vec4(a_position, 0.0, 1.0);
-      v_texCoord = a_texCoord;
+  const {
+    gl,
+    program,
+    vertexBuffer,
+    positionLocation,
+    texCoordLocation,
+    uniforms,
+  } = state
+  let texture: WebGLTexture | null = null
+
+  const width = Math.max(1, source.width)
+  const height = Math.max(1, source.height)
+  const colorCount = Math.min(params.colors.length, 16)
+  if (colorCount <= 0) {
+    return applyCanvasOperation(source, {
+      type: 'tritonizer',
+      params,
+    })
+  }
+
+  try {
+    const canvas = gl.canvas as OffscreenCanvas
+    canvas.width = width
+    canvas.height = height
+    gl.viewport(0, 0, width, height)
+    gl.useProgram(program)
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer)
+    gl.enableVertexAttribArray(positionLocation)
+    gl.enableVertexAttribArray(texCoordLocation)
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 16, 0)
+    gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 16, 8)
+
+    texture = gl.createTexture()
+    if (!texture) {
+      return applyCanvasOperation(source, {
+        type: 'tritonizer',
+        params,
+      })
     }
-  `
 
-  const fragmentSource = `
-    precision mediump float;
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source)
 
-    uniform sampler2D u_image;
-    uniform vec3 u_colors[16];
-    uniform int u_colorCount;
-    uniform float u_sigmoidMidpoint;
-    uniform float u_sigmoidStrength;
-    varying vec2 v_texCoord;
+    gl.uniform1i(uniforms.image, 0)
+    gl.uniform1i(uniforms.colorCount, colorCount)
+    gl.uniform1f(uniforms.sigmoidMidpoint, params.sigmoidMidpoint)
+    gl.uniform1f(uniforms.sigmoidStrength, params.sigmoidStrength)
 
-    float sigmoid(float x, float midpoint, float strength) {
-      return 1.0 / (1.0 + exp(-((x - midpoint) / max(0.01, strength))));
-    }
-
-    void main() {
-      vec4 color = texture2D(u_image, v_texCoord);
-      float gray = color.r * 0.299 + color.g * 0.587 + color.b * 0.114;
-      float threshold = sigmoid(gray, u_sigmoidMidpoint, u_sigmoidStrength * 0.125);
-
-      float indexFloat = floor(threshold * float(u_colorCount));
-      int index = int(indexFloat);
-      if (index >= u_colorCount) {
-        index = u_colorCount - 1;
+    const colorArray = new Float32Array(16 * 3)
+    for (let i = 0; i < colorCount; i += 1) {
+      const color = params.colors[i]
+      if (!color) {
+        continue
       }
 
-      vec3 mapped = u_colors[0];
-      for (int i = 0; i < 16; i++) {
-        if (i == index) {
-          mapped = u_colors[i];
-          break;
-        }
-      }
-
-      gl_FragColor = vec4(mapped, 1.0);
+      colorArray[i * 3] = color[0] / 255
+      colorArray[i * 3 + 1] = color[1] / 255
+      colorArray[i * 3 + 2] = color[2] / 255
     }
-  `
 
-  const program = createProgram(gl, vertexSource, fragmentSource)
-  gl.useProgram(program)
+    gl.uniform3fv(uniforms.colors, colorArray)
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
-  const positions = new Float32Array([
-    -1,
-    -1,
-    0,
-    1,
-    1,
-    -1,
-    1,
-    1,
-    -1,
-    1,
-    0,
-    0,
-    1,
-    1,
-    1,
-    0,
-  ])
-
-  const buffer = gl.createBuffer()
-  if (!buffer) {
-    throw new Error('Failed to create buffer')
-  }
-
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-  gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW)
-
-  const positionLoc = gl.getAttribLocation(program, 'a_position')
-  const texCoordLoc = gl.getAttribLocation(program, 'a_texCoord')
-  gl.enableVertexAttribArray(positionLoc)
-  gl.enableVertexAttribArray(texCoordLoc)
-  gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 16, 0)
-  gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 16, 8)
-
-  const texture = gl.createTexture()
-  if (!texture) {
-    throw new Error('Failed to create texture')
-  }
-
-  gl.bindTexture(gl.TEXTURE_2D, texture)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-  gl.texImage2D(
-    gl.TEXTURE_2D,
-    0,
-    gl.RGBA,
-    gl.RGBA,
-    gl.UNSIGNED_BYTE,
-    source
-  )
-
-  gl.uniform1i(gl.getUniformLocation(program, 'u_image'), 0)
-  gl.uniform1i(
-    gl.getUniformLocation(program, 'u_colorCount'),
-    Math.min(params.colors.length, 16)
-  )
-  gl.uniform1f(
-    gl.getUniformLocation(program, 'u_sigmoidMidpoint'),
-    params.sigmoidMidpoint
-  )
-  gl.uniform1f(
-    gl.getUniformLocation(program, 'u_sigmoidStrength'),
-    params.sigmoidStrength
-  )
-
-  const colorArray = new Float32Array(16 * 3)
-  for (let i = 0; i < Math.min(params.colors.length, 16); i++) {
-    const color = params.colors[i]
-    if (!color) {
-      continue
+    return canvas.transferToImageBitmap()
+  } catch {
+    return applyCanvasOperation(source, {
+      type: 'tritonizer',
+      params,
+    })
+  } finally {
+    if (texture) {
+      gl.deleteTexture(texture)
     }
-    colorArray[i * 3] = color[0] / 255
-    colorArray[i * 3 + 1] = color[1] / 255
-    colorArray[i * 3 + 2] = color[2] / 255
   }
-
-  gl.uniform3fv(gl.getUniformLocation(program, 'u_colors'), colorArray)
-  gl.viewport(0, 0, source.width, source.height)
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
-
-  gl.deleteBuffer(buffer)
-  gl.deleteTexture(texture)
-  gl.deleteProgram(program)
-
-  return canvas.transferToImageBitmap()
 }
 
 function applyOperations(
   source: ImageBitmap,
   operations: readonly Operation[],
-  isCancelled: () => boolean
+  isCancelled: () => boolean,
+  state: WebGLState | null
 ): ImageBitmap {
   let current = source
 
@@ -231,7 +311,7 @@ function applyOperations(
     }
 
     const next = operationIsTritonizer(operation)
-      ? applyTritonizerWebGL(current, operation.params)
+      ? withWebGLFallback(current, operation.params, state)
       : applyCanvasOperation(current, operation)
 
     if (current !== source) {
@@ -246,22 +326,43 @@ function applyOperations(
 
 export class WebGL2Backend implements RendererBackend {
   readonly name = 'webgl2' as const
+  private readonly state: WebGLState | null
+  private readonly canvas: OffscreenCanvas
+  private queue = Promise.resolve()
+
+  constructor() {
+    this.canvas = new OffscreenCanvas(1, 1)
+    this.state = createState(this.canvas)
+  }
+
+  private withLock<T>(task: () => Promise<T> | T): Promise<T> {
+    const next = this.queue.then(() => task())
+    this.queue = next.then(
+      () => undefined,
+      () => undefined
+    )
+    return next
+  }
 
   async renderPreview(input: RenderPreviewInput) {
     const startedAt = performance.now()
-    const rendered = applyOperations(
-      input.source,
-      input.operations,
-      input.cancelToken.isCancelled
-    )
-    const fitted = fitBitmap(rendered, input.targetWidth, input.targetHeight)
+    const fitted = await this.withLock(async () => {
+      const rendered = applyOperations(
+        input.source,
+        input.operations,
+        input.cancelToken.isCancelled,
+        this.state
+      )
+      const next = fitBitmap(rendered, input.targetWidth, input.targetHeight)
 
-    if (rendered !== input.source) {
-      rendered.close()
-    }
+      if (rendered !== input.source) {
+        rendered.close()
+      }
+
+      return next
+    })
 
     const elapsedMs = performance.now() - startedAt
-
     return {
       bitmap: fitted,
       stats: makeStats(elapsedMs, fitted.width, fitted.height, this.name),
@@ -270,31 +371,52 @@ export class WebGL2Backend implements RendererBackend {
 
   async renderExport(input: RenderExportInput) {
     const startedAt = performance.now()
-    const rendered = applyOperations(
-      input.source,
-      input.operations,
-      input.cancelToken.isCancelled
-    )
+    const result = await this.withLock(async () => {
+      const rendered = applyOperations(
+        input.source,
+        input.operations,
+        input.cancelToken.isCancelled,
+        this.state
+      )
+      const blob = await bitmapToBlob(rendered, input.exportOptions)
 
-    const blob = await bitmapToBlob(rendered, input.exportOptions)
-    const elapsedMs = performance.now() - startedAt
+      if (rendered !== input.source) {
+        rendered.close()
+      }
 
-    if (rendered !== input.source) {
-      rendered.close()
-    }
+      return {
+        blob,
+        width: input.source.width,
+        height: input.source.height,
+      }
+    })
 
     return {
-      blob,
+      blob: result.blob,
       stats: makeStats(
-        elapsedMs,
-        input.source.width,
-        input.source.height,
+        performance.now() - startedAt,
+        result.width,
+        result.height,
         this.name
       ),
     }
   }
 
   dispose(): void {
-    // no-op
+    if (!this.state) {
+      return
+    }
+
+    this.state.gl.deleteProgram(this.state.program)
+    this.state.gl.deleteBuffer(this.state.vertexBuffer)
+    const loseContext = this.state.gl.getExtension('WEBGL_lose_context')
+    if (loseContext) {
+      loseContext.loseContext()
+    }
+    this.queue = Promise.resolve()
+  }
+
+  getCanvas(): OffscreenCanvas {
+    return this.canvas
   }
 }
