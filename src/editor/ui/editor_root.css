@@ -252,13 +252,24 @@ select {
   margin-top: 0;
 }
 
+.permutations-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: calc(100vh - 168px);
+  overflow: hidden;
+}
+
 .permutation-grid {
-  max-height: calc(100vh - 230px);
-  overflow: auto;
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: grid;
   gap: 0.55rem;
   grid-template-columns: 1fr 1fr;
   align-content: flex-start;
+  padding-right: 0.1rem;
 }
 
 .perm-card {
