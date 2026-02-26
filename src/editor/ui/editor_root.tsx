@@ -788,16 +788,16 @@ export const EditorRoot: Component = () => {
       <header class="editor-topbar">
         <div>
           <p class="eyebrow">Tritonizer</p>
-          <h1>Obsidian Tritonizer</h1>
-          <p>{status()}</p>
+          <h1><span class="title-accent">Obsidian</span> Tritonizer</h1>
+          <p class="meta">{status()}</p>
           <Show when={sourceDimensions()}>
             {(dimensions) => <p class="meta">{dimensions().width}x{dimensions().height}</p>}
           </Show>
           <Show when={previewStats()}>
-            <p class="stats">Preview: {previewStats()}</p>
+            <p class="stats">Preview • {previewStats()}</p>
           </Show>
           <Show when={exportStats()}>
-            <p class="stats">Export: {exportStats()}</p>
+            <p class="stats">Export • {exportStats()}</p>
           </Show>
           <Show when={error()}>
             {(message) => <p class="error">{message()}</p>}
@@ -985,7 +985,10 @@ export const EditorRoot: Component = () => {
         <section class="panel viewport-panel">
           <div class="viewport-header">
             <h2>Live Tritonizer Preview</h2>
-            <span>{isRendering() ? 'Rendering' : 'Ready'}</span>
+          <span class="status-chip" classList={{ ready: !isRendering(), rendering: isRendering() }}>
+            <span class="live-dot" />
+            {isRendering() ? 'Live' : 'Ready'}
+          </span>
           </div>
           <div class="viewport" ref={viewportRef}>
             <canvas ref={canvasRef} />
