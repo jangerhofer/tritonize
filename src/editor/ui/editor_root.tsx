@@ -788,7 +788,7 @@ export const EditorRoot: Component = () => {
       <header class="editor-topbar">
         <div>
           <p class="eyebrow">Tritonizer</p>
-          <h1><span class="title-accent">Obsidian</span> Tritonizer</h1>
+          <h1>Tritonizer</h1>
           <p class="meta">{status()}</p>
           <Show when={sourceDimensions()}>
             {(dimensions) => <p class="meta">{dimensions().width}x{dimensions().height}</p>}

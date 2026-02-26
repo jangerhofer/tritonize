@@ -64,11 +64,6 @@
   letter-spacing: -0.02em;
 }
 
-.editor-topbar h1 .title-accent {
-  color: var(--ui-accent);
-  margin-right: 0.36rem;
-}
-
 .editor-topbar .eyebrow {
   margin: 0;
   text-transform: uppercase;
